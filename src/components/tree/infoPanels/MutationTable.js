@@ -142,6 +142,19 @@ const ListOfMutations = ({gene, name, muts, displayAsIntervals, isNuc}) => {
   );
 };
 
+const SummaryOfMutations = ({ gene, name, muts, displayAsIntervals, isNuc }) => {
+  let categories = [];
+  if (displayAsIntervals) {
+    const intervals = parseIntervalsOfNsOrGaps(muts);
+    categories.push(`${name} (${intervals.length} regions, ${muts.length}${isNuc ? "bp" : " codons"})`);
+  } else {
+    categories.push(`${name} (${muts.length})`);
+  }
+  return (
+    <SubHeading key={name}>{categories.join(", ")}</SubHeading>
+  );
+};
+
 const mutCategoryLookup = {
   unique: "Unique",
   changes: "Changes",
@@ -176,20 +189,20 @@ const displayGeneMutations = (gene, mutsPerCat) => {
   }
   return (
     <tr key={gene}>
-      <TableFirstColumn>{gene==="nuc" ? "Nt" : gene}</TableFirstColumn>
+      <TableFirstColumn>{gene === "nuc" ? "Genome" : gene}</TableFirstColumn>
       <td>
-        {Object.entries(mutCategoryLookup).map(([key, name]) => (
-          (key in mutsPerCat && mutsPerCat[key].length) ?
-            (<ListOfMutations
+        {Object.entries(mutCategoryLookup).map(([key, name]) =>
+          key in mutsPerCat && mutsPerCat[key].length ? (
+            <SummaryOfMutations
               gene={gene}
               key={name}
               name={name}
               muts={mutsPerCat[key]}
-              displayAsIntervals={key==="gaps" || key==="ns" || key==='undeletions'}
-              isNuc={gene==="nuc"}
-            />) :
-            null
-        ))}
+              displayAsIntervals={key === "gaps" || key === "ns" || key === "undeletions"}
+              isNuc={gene === "nuc"}
+            />
+          ) : null
+        )}
       </td>
     </tr>
   );
@@ -217,21 +230,20 @@ function MutationClickHelpText() {
 
 const branchMutationInfo = (<div>
   A summary of mutations inferred to have occurred on this branch.{' '}
-  <MutationClickHelpText />
   <p/>
   Mutations are grouped into one of the following (mutually exclusive) categories,
   with the first matching category used:
 
   <ol>
-    <li>Undeletions: a change from a &apos;-&apos; character to a base; beware that these are often bioinformatics artifacts</li>
-    <li>Gaps: A change to a &apos;-&apos; character, indicating a missing base; these can indicate deletions but sometimes areas of no coverage are filled with gaps</li>
-    <li>Ns: Typically due to lack of sequence coverage or ambiguity at this position (Nucleotides only)</li>
-    <li>Homoplasies: a mutation that has also been observed elsewhere on the tree</li>
-    <li>Unique: Mutations which are only observed on this branch</li>
+    <li>Undeletions: a change from a &apos;-&apos; character to a base; beware that these are often bioinformatics artifacts.</li>
+    <li>Gaps: A change to a &apos;-&apos; character, indicating a missing base; these can indicate deletions but sometimes areas of no coverage are filled with gaps.</li>
+    <li>Ns: Typically due to lack of sequence coverage or ambiguity at this position (Nucleotides only).</li>
+    <li>Homoplasies: a mutation that has also been observed elsewhere on the tree.</li>
+    <li>Unique: Mutations which are only observed on this branch.</li>
   </ol>
 
   Reversions to Root is an additional category which highlights those mutations which return the state to that of the root.
-  Mutations in this category will also appear one of the five categories listed above.
+  Mutations in this category will also appear in one of the five categories listed above.
   <p/>
   Gaps and Ns are grouped into intervals, as they frequently occur in succession.
   Click below to copy all changes to clipboard to see the full list.
@@ -239,16 +251,15 @@ const branchMutationInfo = (<div>
 
 const tipChangesInfo = (<div>
   A summary of sequence changes between the root and the selected tip.{' '}
-  <MutationClickHelpText />
   <p/>
   Changes are grouped into one of the following (mutually exclusive) categories,
   with the first matching category used:
 
   <ol>
-    <li>Gaps: A change to a &apos;-&apos; character, indicating a missing base; these can indicate deletions but sometimes areas of no coverage are filled with gaps</li>
-    <li>Ns: Typically due to lack of sequence coverage or ambiguity at this position (Nucleotides only)</li>
-    <li>Reversions to root: The tip state is the same as the root state, however this has changed and been reverted along the way</li>
-    <li>Changes: The tip state differs from the root state</li>
+    <li>Gaps: A change to a &apos;-&apos; character, indicating a missing base; these can indicate deletions but sometimes areas of no coverage are filled with gaps.</li>
+    <li>Ns: Typically due to lack of sequence coverage or ambiguity at this position (Nucleotides only).</li>
+    <li>Reversions to root: The tip state is the same as the root state, however this has changed and been reverted along the way.</li>
+    <li>Changes: The tip state differs from the root state.</li>
   </ol>
 
   Gaps and Ns are grouped into intervals, as they frequently occur in succession.
