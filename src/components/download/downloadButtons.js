@@ -35,14 +35,17 @@ export const DownloadButtons = ({dispatch, t, tree, entropy, metadata, colorBy, 
 
   return (
     <>
-      <div style={{fontWeight: 500, marginTop: "0px", marginBottom: "20px"}}>
-        Downloaded data represents the currently displayed view.
-        By zooming the tree, changing the branch-length metric, applying filters etc, the downloaded data will change accordingly.
-        <p/>
-        NOTE: We do not support downloads of multiple subtrees, which are usually created with the date range filter or genotype filters.
-        Downloading multiple subtrees will result in an empty Newick tree!
-        <p/>
-        {partialData ? `Currently ${selectedTipsCount}/${totalTipCount} tips are displayed and will be downloaded.` : `Currently the entire dataset (${totalTipCount} tips) will be downloaded.`}
+      <div style={{ fontWeight: 500, marginTop: "0px", marginBottom: "20px" }}>
+        Downloaded data represents the currently displayed view. By zooming the tree, changing the
+        branch-length metric, applying filters etc, the downloaded data will change accordingly.
+        <p />
+        NOTE: We do not support downloads of multiple subtrees, which are usually created with the
+        date range filter or genotype filters. Downloading multiple subtrees will result in an empty
+        Newick tree!
+        <p />
+        {partialData
+          ? `Currently ${selectedTipsCount}/${totalTipCount} tips are displayed and will be downloaded.`
+          : `Currently the entire dataset (${totalTipCount} tips) will be downloaded.`}
       </div>
       {supportAuspiceJsonDownload && (
         <Button
@@ -53,35 +56,54 @@ export const DownloadButtons = ({dispatch, t, tree, entropy, metadata, colorBy, 
         />
       )}
       <Button
-        name={`${temporal ? 'TimeTree' : 'Tree'} (Newick)`}
-        description={`Phylogenetic tree in Newick format with branch lengths in units of ${temporal?'years':'divergence'}.`}
+        name={`${temporal ? "TimeTree" : "Tree"} (Newick)`}
+        description={`Phylogenetic tree in Newick format with branch lengths in units of ${
+          temporal ? "years" : "divergence"
+        }.`}
         icon={<RectangularTreeIcon width={iconWidth} selected />}
-        onClick={() => helpers.exportTree({isNewick: true, dispatch, filePrefix, tree, temporal})}
+        onClick={() => helpers.exportTree({ isNewick: true, dispatch, filePrefix, tree, temporal })}
       />
       <Button
-        name={`${temporal ? 'TimeTree' : 'Tree'} (Nexus)`}
-        description={`Phylogeny in Nexus format with branch lengths in units of ${temporal?'years':'divergence'}. Colorings are included as annotations.`}
+        name={`${temporal ? "TimeTree" : "Tree"} (Nexus)`}
+        description={`Phylogeny in Nexus format with branch lengths in units of ${
+          temporal ? "years" : "divergence"
+        }. Colorings are included as annotations.`}
         icon={<RectangularTreeIcon width={iconWidth} selected />}
-        onClick={() => helpers.exportTree({dispatch, filePrefix, tree, colorings: metadata.colorings, colorBy, temporal})}
+        onClick={() =>
+          helpers.exportTree({
+            dispatch,
+            filePrefix,
+            tree,
+            colorings: metadata.colorings,
+            colorBy,
+            temporal,
+          })
+        }
       />
-      {gisaidProvenance ?
+      {gisaidProvenance ? (
         <Button
           name="Acknowledgments (TSV)"
           description={`Per-sample acknowledgments (n = ${selectedTipsCount}).`}
           icon={<MetaIcon width={iconWidth} selected />}
-          onClick={() => helpers.acknowledgmentsTSV(dispatch, filePrefix, tree.nodes, tree.visibility)}
-        /> :
+          onClick={() =>
+            helpers.acknowledgmentsTSV(dispatch, filePrefix, tree.nodes, tree.visibility)
+          }
+        />
+      ) : (
         <Button
           name="Metadata (TSV)"
           description={`Per-sample metadata (n = ${selectedTipsCount}).`}
           icon={<MetaIcon width={iconWidth} selected />}
           onClick={() => helpers.strainTSV(dispatch, filePrefix, tree.nodes, tree.visibility)}
         />
-      }
+      )}
       {helpers.areAuthorsPresent(tree) && (
         <Button
           name="Author Metadata (TSV)"
-          description={`Metadata for ${selectedTipsCount} samples grouped by their ${getNumUniqueAuthors(tree.nodes, tree.visibility)} authors.`}
+          description={`Metadata for ${selectedTipsCount} samples grouped by their ${getNumUniqueAuthors(
+            tree.nodes,
+            tree.visibility
+          )} authors.`}
           icon={<MetaIcon width={iconWidth} selected />}
           onClick={() => helpers.authorTSV(dispatch, filePrefix, tree)}
         />
@@ -89,26 +111,36 @@ export const DownloadButtons = ({dispatch, t, tree, entropy, metadata, colorBy, 
       {entropy.loaded && (
         <Button
           name="Genetic diversity data (TSV)"
-          description={`The data behind the diversity panel showing ${entropy.showCounts?`a count of changes across the tree`:`normalised shannon entropy`} per ${entropyBar}.`}
+          description={`The data behind the diversity panel showing ${
+            entropy.showCounts ? `a count of changes across the tree` : `normalised shannon entropy`
+          } per ${entropyBar}.`}
           icon={<MetaIcon width={iconWidth} selected />}
           onClick={() => helpers.entropyTSV(dispatch, filePrefix, entropy)}
         />
       )}
       <Button
+        name="Genome sequences (FASTA)"
+        description={`Genome sequences for ${selectedTipsCount} samples.`}
+        icon={<MetaIcon width={iconWidth} selected />}
+        onClick={() => helpers.sequencesFASTA(dispatch, filePrefix, tree.nodes, tree.visibility, entropy.selectedCds)}
+      />
+      <Button
         name="Screenshot (SVG)"
         description="Screenshot of the current nextstrain display in SVG format; CC-BY licensed."
         icon={<PanelsGridIcon width={iconWidth} selected />}
-        onClick={() => helpers.SVG(
-          dispatch,
-          t,
-          metadata,
-          tree.nodes,
-          visibility,
-          getFilePrefix(),
-          panelsToDisplay,
-          panelLayout,
-          relevantPublications
-        )}
+        onClick={() =>
+          helpers.SVG(
+            dispatch,
+            t,
+            metadata,
+            tree.nodes,
+            visibility,
+            getFilePrefix(),
+            panelsToDisplay,
+            panelLayout,
+            relevantPublications
+          )
+        }
       />
     </>
   );

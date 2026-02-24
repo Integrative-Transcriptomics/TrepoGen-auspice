@@ -695,6 +695,21 @@ export const entropyTSV = (dispatch, filePrefix, entropy) => {
   dispatch(infoNotification({message: `Diversity data exported to ${filename}`}));
 };
 
+export const sequencesFASTA = (dispatch, filePrefix, nodes, visibility, selectedCds) => {
+  var toDownload = [];
+	for (const [nodeIndex, node] of nodes.entries()) {
+		if (visibility[nodeIndex] == NODE_VISIBLE && !node.hasChildren) {
+			toDownload.push(node.name);
+		}
+  }
+  if (toDownload.length === 0) {
+    dispatch(warningNotification({message: "No sequences to download!"}));
+    return;
+  } else {
+    dispatch(infoNotification({ message: `Preparing ${toDownload.length} sequences (${selectedCds}) for download.` }));
+    return;
+  }
+}
 
 /**
  * Write out Auspice JSON(s) for the current view. We do this by re-fetching the original
