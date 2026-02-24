@@ -1,0 +1,13 @@
+{
+	"sidebarTheme": {
+		"background": "#DBE9EE",
+		"sidebarBoxShadow": "rgba(0, 0, 0, 0.2)",
+		"color": "#040404", 
+		"selectedColor": "#4A6FA5",
+		"unselectedColor": "#464E51",
+		"font-family": "Lato, Helvetica Neue, Helvetica, sans-serif",
+		"alternateBackground": "#38404C"
+	},
+	"browserTitle": "TrepoGen",
+	"finePrint": "This is a test."
+}
