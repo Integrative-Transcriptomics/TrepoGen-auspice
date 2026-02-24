@@ -6,7 +6,7 @@
 		"color": "#040404", 
 		"selectedColor": "#4A6FA5",
 		"unselectedColor": "#ACB7C9",
-		"font-family": "Lato, Helvetica Neue, Helvetica, sans-serif",
+		"font-family": "Lato, Helvetica Neue, Helvetica, sans-serif"
 	},
 	"browserTitle": "TrepoGen"
 }
