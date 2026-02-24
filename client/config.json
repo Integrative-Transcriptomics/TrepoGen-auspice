@@ -9,5 +9,5 @@
 		"font-family": "Lato, Helvetica Neue, Helvetica, sans-serif"
 	},
 	"browserTitle": "TrepoGen",
-	"serverAddress": "/nextstrain"
+	"serverAddress": "/nextstrain/charon"
 }
