@@ -8,5 +8,6 @@
 		"unselectedColor": "#ACB7C9",
 		"font-family": "Lato, Helvetica Neue, Helvetica, sans-serif"
 	},
-	"browserTitle": "TrepoGen"
+	"browserTitle": "TrepoGen",
+	"serverAddress": "/nextstrain"
 }
