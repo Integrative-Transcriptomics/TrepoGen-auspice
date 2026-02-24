@@ -350,3 +350,69 @@ export function nucleotideToAaPosition(genomeMap, nucPos) {
   })
   return matches;
 }
+
+/**
+ * Parse topology string from JSON annotation into array of entries. Each entry is
+ * [TYPE, START, END] where START and END are integers. TYPE is a string and should be
+ * currently one of: 'SP' (signal peptide), 'IN' (internal segment), 'TM' (transmembrane segment),
+ * 'OUT' (external segment).
+ * 
+ * @param {string} topology Topology string from JSON annotation in format TYPE:START:END,TYPE:START:END,... 
+ * @returns {Array} Array of [TYPE, START, END] entries where START and END are integers.
+ */
+export function parseTopologyLocalString(topology) {
+  const parts = topology.split(',');
+  return parts.map((part) => {
+    const [t, s, e] = part.split(':');
+    return [t, parseInt(s, 10), parseInt(e, 10)];
+  });
+}
+
+
+/**
+ * Normalize topology segments to be within the bounds of the given CDS.
+ * 
+ * @param {Array} topologySegments Array of [TYPE, START, END] entries where START and END are integers. 
+ * @param {CDS} cds CDS object to use for clamping segments.
+ * @returns Array of normalized [TYPE, START, END] entries or null if no segments overlap CDS.
+ */
+export function normalizeTopologyLocalSegments(topologySegments, cds) {
+  const normalized = [];
+  // Get the last segment to determine CDS length. Assume only one segment is present.
+  const cdsSegment = cds.segments.at(-1);
+  topologySegments.forEach(([type, start, end]) => {
+    let normStart = start;
+    let normEnd = end;
+    // Swap if start is greater than end.
+    if (normStart > normEnd) {
+      [normStart, normEnd] = [normEnd, normStart];
+    }
+    // Clamp to CDS segment start, if start is less.
+    if (start < cdsSegment.rangeLocal[0]) {
+      normStart = cdsSegment.rangeLocal[0];
+    }
+    // Clamp to CDS segment end, if end exceeds cds length.
+    if (end > cdsSegment.rangeLocal[1]) {
+      normEnd = cdsSegment.rangeLocal[1];
+    }
+    // Only include if there's an overlap with the CDS segment.
+    if (normStart <= cdsSegment.rangeLocal[1] && normEnd >= cdsSegment.rangeLocal[0]) {
+      normalized.push([type, normStart, normEnd]);
+    }
+  });
+  return normalized.length >= 1 ? normalized : null;
+}
+
+/**
+ * Convenience function to get normalized topology segments for a given CDS.
+ * 
+ * @param {CDS} cds 
+ * @returns Normalized topology segments or null if none defined/overlap.
+ */
+export function getTopologyLocalForCds(cds) {
+  if (!cds.topology) {
+    return null;
+  }
+  const topologySegments = parseTopologyLocalString(cds.topology);
+  return normalizeTopologyLocalSegments(topologySegments, cds);
+}

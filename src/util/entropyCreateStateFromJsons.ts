@@ -53,6 +53,7 @@ interface CDS {
   color: string
   name: string
   isWrapping: boolean
+  topology?: string | undefined
   displayName?: string
   description?: string
   stackPosition?: number
@@ -330,6 +331,9 @@ function cdsFromAnnotation(
   if (typeof annotation.description === 'string') {
     cds.description = annotation.description;
   }
+  if (typeof annotation.topology === 'string') {
+    cds.topology = annotation.topology;
+  }
   return cds
 }
 
@@ -472,7 +476,6 @@ function _fitCdssTogether(
   }
   return 0;
 }
-
 
 /* Does a CDS wrap the origin? */
 function _isCdsWrapping(

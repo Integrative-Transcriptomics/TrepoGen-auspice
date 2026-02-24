@@ -10,9 +10,9 @@ import { brushX } from "d3-brush";
 import Mousetrap from "mousetrap";
 import { darkGrey, infoPanelStyles } from "../../globalStyles";
 import { changeZoom } from "../../actions/entropy";
-import { nucleotide_gene } from "../../util/globals";
+import { nucleotide_gene, topologyColors } from "../../util/globals";
 import { getCdsByName, getNucCoordinatesFromAaPos, getCdsRangeLocalFromRangeGenome,
-  nucleotideToAaPosition} from "../../util/entropy";
+  nucleotideToAaPosition, getTopologyLocalForCds} from "../../util/entropy";
 
 /* EntropyChart uses D3 for visualisation. There are 2 methods exposed to
  * keep the visualisation in sync with React:
@@ -222,48 +222,89 @@ EntropyChart.prototype._setSelectedNodes = function _setSelectedNodes() {
 EntropyChart.prototype._drawMainCds = function _drawMainCds() {
   this._groups.mainCds.selectAll("*").remove();
   const [inViewNucA, inViewNucB] = this.scales.xMain.domain();
-
-  if (this.selectedCds!==nucleotide_gene) {
-    this._groups.mainCds.selectAll(".cds")
-      .data(this._cdsSegments({selected: true}))
-      .enter()
-      .append("rect")
+  if (this.selectedCds !== nucleotide_gene) {
+    if (this.selectedCds.hasOwnProperty('topology')) {
+      // Custom handling for topology annotated CDSs.
+      const topologyLocal = getTopologyLocalForCds(this.selectedCds);
+      topologyLocal.forEach((topologySegment) => {
+        // Add rectangle.
+        const width = (
+          this.scales.xMain(Math.min(topologySegment[2] + 0.5, inViewNucB)) -
+          this.scales.xMain(Math.max(topologySegment[1] - 0.5, inViewNucA))
+        );
+        this._groups.mainCds
+          .append("rect")
+          .attr("class", "gene")
+          .attr("x", () => this.scales.xMain(Math.max(topologySegment[1] - 0.5, inViewNucA)))
+          .attr("y", 0)
+          .attr("width", () => width)
+          .attr("height", this.offsets.mainCdsRectHeight)
+          .style("fill", topologyColors[topologySegment[0]] || darkGrey)
+          .style("stroke", "#fff")
+          .style("stroke-width", 2)
+          .style("opacity", 1); // Segments _can't_ overlap when viewing an individual CDS
+      });
+      
+      /*this._groups.legend
+        .append("text")
+        .attr("x", () => {
+          const l = this.scales.xMain(inViewNucA);
+          const r = this.scales.xMain(inViewNucB);
+          return l + (r - l) / 2;
+        })
+        .attr("y", 1)
+        .attr("pointer-events", "none")
+        .attr("text-anchor", "middle") // horizontal axis
+        .attr("dominant-baseline", "hanging") // vertical axis
+        .style("fill", "black")
+        .style("font-size", `${this.offsets.mainCdsRectHeight - 2}px`)
+        .text(() => "Test Legend 1: A 2: B 3: C 4: D");*/
+    } else {
+      // Default handling for non-topology CDSs.
+      this._groups.mainCds
+        .selectAll(".cds")
+        .data(this._cdsSegments({ selected: true }))
+        .enter()
+        .append("rect")
         .attr("class", "gene")
-        .attr("x", (d) => this.scales.xMain(Math.max(d.rangeLocal[0]-0.5, inViewNucA)))
+        .attr("x", (d) => this.scales.xMain(Math.max(d.rangeLocal[0] - 0.5, inViewNucA)))
         .attr("y", 0)
         .attr("width", (d) => {
-          return this.scales.xMain(Math.min(d.rangeLocal[1]+0.5, inViewNucB)) -
-          this.scales.xMain(Math.max(d.rangeLocal[0]-0.5, inViewNucA))
+          return (
+            this.scales.xMain(Math.min(d.rangeLocal[1] + 0.5, inViewNucB)) -
+            this.scales.xMain(Math.max(d.rangeLocal[0] - 0.5, inViewNucA))
+          );
         })
         .attr("height", this.offsets.mainCdsRectHeight)
         .style("fill", this.selectedCds.color)
         .style("stroke", "#fff")
         .style("stroke-width", 2)
-        .style('opacity', 1) // Segments _can't_ overlap when viewing an individual CDS
+        .style("opacity", 1) // Segments _can't_ overlap when viewing an individual CDS
         .on("mouseover", (d) => {
-          this.callbacks.onHover({d3event, tooltip: this._cdsTooltip(d)})
+          this.callbacks.onHover({ d3event, tooltip: this._cdsTooltip(d) });
         })
         .on("mouseout", (d) => {
           this.callbacks.onLeave(d);
         });
-        // there is no onClick handler for a single CDS
+      // there is no onClick handler for a single CDS
 
-    this._groups.mainCds
-      .append("text")
+      this._groups.mainCds
+        .append("text")
         .attr("x", () => {
-          const l =  this.scales.xMain(Math.max(1, inViewNucA));
+          const l = this.scales.xMain(Math.max(1, inViewNucA));
           const r = this.scales.xMain(Math.min(this.selectedCds.length, inViewNucB));
-          return l + (r-l)/2;
+          return l + (r - l) / 2;
         })
         /* We create the SVG with units equal to pixels, so the top of the text is intended
         to start 1px below the top of the CDS rect, and stop 1px above the bottom of the rect */
         .attr("y", 1)
         .attr("pointer-events", "none")
-        .attr("text-anchor", "middle")        // horizontal axis
+        .attr("text-anchor", "middle") // horizontal axis
         .attr("dominant-baseline", "hanging") // vertical axis
         .style("fill", "white")
-        .style("font-size", `${this.offsets.mainCdsRectHeight-2}px`)
+        .style("font-size", `${this.offsets.mainCdsRectHeight - 2}px`)
         .text(() => this.selectedCds.name);
+    }
 
     return;
   }
@@ -704,7 +745,7 @@ EntropyChart.prototype._calcOffsets = function _calcOffsets(width, height) {
   the tick labels if there are no -ve strand CDSs */
   this.offsets.brushY1 = this.offsets.navCdsY1 - brushSpaceAboveBelowCdsRects;
   this.offsets.brushHeight = this.offsets.navCdsNegativeY1Delta + // space between top of CDS space & top of -ve strand CDS
-    navCdsNegativeStrandSpace + 2*brushSpaceAboveBelowCdsRects;
+    navCdsNegativeStrandSpace + 2 * brushSpaceAboveBelowCdsRects;
 
   /* The main axis sits ~directly above the top of the brush, with the CDSs
   above that. It is used by the barchart, upper axis, upper CDS annotations. It
@@ -715,9 +756,9 @@ EntropyChart.prototype._calcOffsets = function _calcOffsets(width, height) {
     tinySpace -
     tickSpace;
   if (this.aa) {  
-    this.offsets.mainCdsY1 = this.offsets.mainAxisY1 - 
+    this.offsets.mainCdsY1 = this.offsets.mainAxisY1 -
       tinySpace - // space above axis line before any CDS appears
-      mainCdsRectHeight; // space only for a single rect
+      mainCdsRectHeight; // space for a single rect and legend
   } else {
     this.offsets.mainCdsY1 = this.offsets.mainAxisY1 - 
       tinySpace - // space above axis line before any CDS appears
@@ -736,9 +777,9 @@ EntropyChart.prototype._calcOffsets = function _calcOffsets(width, height) {
 
   /* mainY1 is the top of the bar chart, and so the bars are the space that's left over */
   this.offsets.mainY1 = marginTop;
-  this.offsets.heightMainBars = this.offsets.mainCdsY1 - 
-    this.offsets.mainY1 - 
-    tinySpace; // space between topmost CDS + bars starting 
+  this.offsets.heightMainBars = this.offsets.mainCdsY1 -
+    this.offsets.mainY1 -
+    tinySpace; // space between topmost CDS + bars starting
 
   /* We now consider the horizontal offsets.
   The Nav, Brush, and y-axis all use x1,x2, width, which never changes */
@@ -769,7 +810,7 @@ EntropyChart.prototype._updateOffsets = function _updateOffsets() {
     this.offsets.widthNarrow = this.offsets.width - 2*this.offsets.xMainInternalPad;
     this.offsets.mainCdsY1 = this.offsets.mainAxisY1 - 
       this.offsets.tinySpace - // space above axis line before any CDS appears
-      this.offsets.mainCdsRectHeight; // space only for a single rect
+      (2 * this.offsets.mainCdsRectHeight); // space only for a single rect
   } else {
     this.offsets.x1Narrow = this.offsets.x1;
     this.offsets.widthNarrow = this.offsets.width;
@@ -838,7 +879,6 @@ EntropyChart.prototype._setUpZoomBrush = function _setUpZoomBrush() {
     // this._setUpMousewheelZooming() // TODO XXX
 };
 
-
 /**
  * If we have selected a wrapping CDS this function inverts the brush by
  * (i) hiding the original brush
@@ -875,7 +915,6 @@ EntropyChart.prototype._setUpZoomBrushWrapping = function _setUpZoomBrushWrappin
   // hide the actual brush selection (as we want to view the inverted selection)
   this._groups.navBrush.select(".selection").attr("fill-opacity", 0);
 }
-
 
 /**
  * Dispatches Redux actions to update the zoom coordinates in the URL (and redux
@@ -1048,7 +1087,7 @@ EntropyChart.prototype._createGroups = function _createGroups() {
 
   this._groups.mainClip = this.svg.append("g")
     .attr("id", "mainClip")
-
+  
   this._groups.mainClip.append("clipPath")
     /** The coordinates here get translated by element where we apply the clipping.
      * In our case it's this._groups.mainBars.
@@ -1064,8 +1103,6 @@ EntropyChart.prototype._createGroups = function _createGroups() {
       .attr("height", this.offsets.heightMainBars);
 }
   
-
-
 EntropyChart.prototype._mainTooltipAa = function _mainTooltipAa(d) {
   const _render = function _render(t) {
     const cds = getCdsByName(this.genomeMap, this.selectedCds.name);
@@ -1156,7 +1193,6 @@ EntropyChart.prototype._mainTooltipNuc = function _mainTooltipAa(d) {
   }
   return _render.bind(this)
 }
-
 
 EntropyChart.prototype._cdsTooltip = function _cdsTooltip(d) {
   const _render = function _render(t) {
