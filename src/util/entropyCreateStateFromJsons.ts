@@ -55,6 +55,7 @@ interface CDS {
   isWrapping: boolean
   topology?: string | undefined
   displayName?: string
+  info?: string | undefined
   description?: string
   stackPosition?: number
 }
@@ -330,6 +331,9 @@ function cdsFromAnnotation(
   }
   if (typeof annotation.description === 'string') {
     cds.description = annotation.description;
+  }
+  if (typeof annotation.info === 'string') {
+    cds.info = annotation.info;
   }
   if (typeof annotation.topology === 'string') {
     cds.topology = annotation.topology;

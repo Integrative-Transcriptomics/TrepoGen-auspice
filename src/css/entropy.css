@@ -40,3 +40,111 @@ table.entropy-table td {
   padding-bottom: 3px;
   padding-right: 5px;
 }
+
+.feature-info-panel {
+  display: block;
+  width: calc(100% - 24px);
+  box-sizing: border-box;
+  margin: 12px 12px 12px 12px;
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.feature-info-panel-title {
+  font-size: 1.8em;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.feature-info-panel-markdown {
+  line-height: 1.2;
+  font-weight: normal;
+  font-size: 1.2em;
+}
+
+.feature-info-panel-markdown p,
+.feature-info-panel-markdown h1,
+.feature-info-panel-markdown h2,
+.feature-info-panel-markdown h3,
+.feature-info-panel-markdown h4,
+.feature-info-panel-markdown li,
+.feature-info-panel-markdown table {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.feature-info-panel-markdown h1 {
+  font-size: 1.8em;
+  font-weight: bolder;
+}
+
+.feature-info-panel-markdown h2 {
+  font-size: 1.7em;
+  font-weight: bolder;
+}
+
+.feature-info-panel-markdown h3 {
+  font-size: 1.6em;
+  font-weight: bolder;
+}
+
+.feature-info-panel-markdown h4 {
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+.feature-info-panel-markdown h5 {
+  font-size: 1.4em;
+  font-weight: bold;
+}
+
+.feature-info-panel-markdown h5 {
+  font-size: 1.3em;
+  font-weight: bold;
+}
+
+.feature-info-panel-markdown ul,
+.feature-info-panel-markdown ol {
+  padding-left: 1.4rem;
+}
+
+.feature-info-panel-markdown table,
+.feature-info-panel-markdown th,
+.feature-info-panel-markdown td {
+  border: 1px solid #ccc;
+  border-collapse: collapse;
+}
+
+.feature-info-panel-markdown th,
+.feature-info-panel-markdown td {
+  padding: 4px 6px;
+}
+
+.feature-info-panel-markdown img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 12px auto;
+}
+
+.feature-info-panel-markdown a {
+  color: #5097BA;
+  text-decoration: none;
+}
+
+.feature-info-panel-markdown a:hover {
+  text-decoration: underline;
+}
+
+.feature-info-panel-markdown pre {
+  overflow-x: auto;
+  padding: 8px;
+  background: #f3f3f3;
+  border-radius: 6px;
+}
+
+.feature-info-panel-markdown code {
+  font-family: monospace;
+}

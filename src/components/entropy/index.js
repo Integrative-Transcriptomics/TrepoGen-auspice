@@ -11,6 +11,7 @@ import { changeColorBy } from "../../actions/colors";
 import { tabGroup, tabGroupMember, tabGroupMemberSelected } from "../../globalStyles";
 import EntropyChart from "./entropyD3";
 import InfoPanel from "./infoPanel";
+import CdsInfoPanel from "./cdsInfoPanel";
 import { changeEntropyCdsSelection, showCountsNotEntropy } from "../../actions/entropy";
 import { ENTROPY_ONSCREEN_CHANGE } from "../../actions/types";
 import { timerStart, timerEnd } from "../../util/perf";
@@ -192,6 +193,18 @@ class Entropy extends React.Component {
       </div>
     );
   }
+  renderSelectedCdsInfoPanel() {
+    const { selectedCds } = this.props;
+    if (!selectedCds || selectedCds === nucleotide_gene) return null;
+    if (!selectedCds.info) return null;
+
+    return (
+      <CdsInfoPanel
+        title={selectedCds.displayName || selectedCds.name}
+        content={selectedCds.info}
+      />
+    );
+  }
   setUp(props) {
     const chart = new EntropyChart(
       this.d3entropy,
@@ -293,43 +306,46 @@ class Entropy extends React.Component {
   render() {
     const styles = getStyles(this.props.width);
     return (
-      <Card infocard={this.props.showOnlyPanels} title={this.title()}>
-        <InfoPanel d3event={this.state.hovered.d3event} width={this.props.width} height={this.props.height}>
-          {this.state.hovered ? this.state.hovered.tooltip(this.props.t) : null}
-        </InfoPanel>
-        <svg
-          id="d3entropyParent"
-          style={{pointerEvents: "auto"}}
-          width={this.props.width}
-          height={this.props.height}
-        >
-          {/* TODO: remove intermediate <g>s once the 1Password extension interference is resolved
-            * <https://github.com/nextstrain/auspice/issues/1919>
-            */}
-          <g><g><g><g>
-            <g ref={(c) => { this.d3entropy = c; }} id="d3entropy"/>
-          </g></g></g></g>
-        </svg>
-        {this.resetLayout(styles)}
-        {this.entropyCountSwitch(styles)}
-        <span style={styles.helpIcon} data-tip data-for="entropyHelp">
-          <FaInfoCircle/>
-        </span>
-        <StyledTooltip place="left" type="dark" effect="solid" id="entropyHelp" style={{maxWidth: '50vh'}}>
-          <div>
-            This panel displays the observed diversity across the current genome or a selected CDS
-            {` (currently you are viewing ${this.props.selectedCds===nucleotide_gene?'the genome':`CDS ${this.props.selectedCds.name}`}). `}
-            <p/>
-            The lower axis shows the genome with +ve strand CDSs above and -ve strand CDSs below and
-            the grey overlay allows zooming in to a region.
-            The upper axis shows either the zoomed in region of the genome or a selected CDS;
-            in the latter case the coordinates represent amino acids.
-            <p/>
-            Clicking on a CDS will select it and show it on the upper axis.
-            {` Clicking "Reset Layout" will always return you to viewing the entire genome.`}
-          </div>
-        </StyledTooltip>
-      </Card>
+      <div>
+        <Card infocard={this.props.showOnlyPanels} title={this.title()}>
+          <InfoPanel d3event={this.state.hovered.d3event} width={this.props.width} height={this.props.height}>
+            {this.state.hovered ? this.state.hovered.tooltip(this.props.t) : null}
+          </InfoPanel>
+          <svg
+            id="d3entropyParent"
+            style={{pointerEvents: "auto"}}
+            width={this.props.width}
+            height={this.props.height}
+          >
+            {/* TODO: remove intermediate <g>s once the 1Password extension interference is resolved
+              * <https://github.com/nextstrain/auspice/issues/1919>
+              */}
+            <g><g><g><g>
+              <g ref={(c) => { this.d3entropy = c; }} id="d3entropy"/>
+            </g></g></g></g>
+          </svg>
+          {this.resetLayout(styles)}
+          {this.entropyCountSwitch(styles)}
+          <span style={styles.helpIcon} data-tip data-for="entropyHelp">
+            <FaInfoCircle/>
+          </span>
+          <StyledTooltip place="left" type="dark" effect="solid" id="entropyHelp" style={{maxWidth: '50vh'}}>
+            <div>
+              This panel displays the observed diversity across the current genome or a selected CDS
+              {` (currently you are viewing ${this.props.selectedCds===nucleotide_gene?'the genome':`CDS ${this.props.selectedCds.name}`}). `}
+              <p/>
+              The lower axis shows the genome with +ve strand CDSs above and -ve strand CDSs below and
+              the grey overlay allows zooming in to a region.
+              The upper axis shows either the zoomed in region of the genome or a selected CDS;
+              in the latter case the coordinates represent amino acids.
+              <p/>
+              Clicking on a CDS will select it and show it on the upper axis.
+              {` Clicking "Reset Layout" will always return you to viewing the entire genome.`}
+            </div>
+          </StyledTooltip>
+        </Card>
+        {this.renderSelectedCdsInfoPanel()}
+      </div>
     );
   }
 
