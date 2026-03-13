@@ -8,6 +8,11 @@
 		"unselectedColor": "#ACB7C9",
 		"font-family": "Lato, Helvetica Neue, Helvetica, sans-serif"
 	},
-	"browserTitle": "TrepoGen",
+	"mapTiles": {
+		"api": "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+		"attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors",
+		"mapboxWordmark": false
+	},
+	"browserTitle": "Global Phylogenomics of Treponema pallidum - Nextstrain",
 	"serverAddress": "/nextstrain/charon"
 }
