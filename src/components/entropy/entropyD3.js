@@ -244,21 +244,6 @@ EntropyChart.prototype._drawMainCds = function _drawMainCds() {
           .style("stroke-width", 2)
           .style("opacity", 1); // Segments _can't_ overlap when viewing an individual CDS
       });
-      
-      /*this._groups.legend
-        .append("text")
-        .attr("x", () => {
-          const l = this.scales.xMain(inViewNucA);
-          const r = this.scales.xMain(inViewNucB);
-          return l + (r - l) / 2;
-        })
-        .attr("y", 1)
-        .attr("pointer-events", "none")
-        .attr("text-anchor", "middle") // horizontal axis
-        .attr("dominant-baseline", "hanging") // vertical axis
-        .style("fill", "black")
-        .style("font-size", `${this.offsets.mainCdsRectHeight - 2}px`)
-        .text(() => "Test Legend 1: A 2: B 3: C 4: D");*/
     } else {
       // Default handling for non-topology CDSs.
       this._groups.mainCds
