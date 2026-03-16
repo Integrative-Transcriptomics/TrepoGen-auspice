@@ -80,6 +80,17 @@ export const changeURLMiddleware = (store) => (next) => (action) => {
       }
       break;
     }
+    case types.CHANGE_ENTROPY_CDS_SELECTION: {
+      query.cds =
+        action.selectedCds === nucleotide_gene ? undefined : action.selectedCds.name;
+
+      if (action.selectedCds === nucleotide_gene) {
+        query.gmin = undefined;
+        query.gmax = undefined;
+      }
+
+      break;
+    }
     case types.NEW_COLORS:
       query.c = action.colorBy === state.controls.defaults.colorBy ? undefined : action.colorBy;
       break;

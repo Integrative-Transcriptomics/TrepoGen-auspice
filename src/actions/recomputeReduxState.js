@@ -8,7 +8,7 @@ import { constructVisibleTipLookupBetweenTrees } from "../util/treeTangleHelpers
 import { getDefaultControlsState, shouldDisplayTemporalConfidence } from "../reducers/controls";
 import { getDefaultFrequenciesState } from "../reducers/frequencies";
 import { countTraitsAcrossTree, calcTotalTipsInTree, gatherTraitNames } from "../util/treeCountingHelpers";
-import { calcEntropyInView } from "../util/entropy";
+import { calcEntropyInView, getCdsByName } from "../util/entropy";
 import { treeJsonToState } from "../util/treeJsonProcessing";
 import { castIncorrectTypes } from "../util/castJsonTypes";
 import { entropyCreateState, genomeMap as createGenomeMap } from "../util/entropyCreateStateFromJsons";
@@ -1106,7 +1106,6 @@ export const createStateFromQueryOrJSONs = ({
 
   controls = checkAndCorrectErrorsInState(controls, metadata, entropy.genomeMap, query, tree, viewingNarrative); /* must run last */
 
-
   /* calculate colours if loading from JSONs or if the query demands change */
   if (json || controls.colorBy !== oldState.controls.colorBy || newMeasurementsColoringData) {
     const colorScale = calcColorScale(controls.colorBy, controls, tree, treeToo, metadata);
@@ -1171,6 +1170,26 @@ export const createStateFromQueryOrJSONs = ({
         entropy.selectedPositions = gt?.positions || []
       }
     }
+
+    /* Custom handling of CDS selection from URL parameter `cds` */
+    if (query.cds) {
+      if (!entropy?.genomeMap || !controls.panelsAvailable.includes("entropy")) {
+        console.warn(`Ignoring CDS query "${query.cds}" because the entropy panel is unavailable.`);
+        delete query.cds;
+      } else {
+        const cds = getCdsByName(entropy.genomeMap, query.cds);
+        if (!cds) {
+          console.error(`Invalid CDS query "${query.cds}"`);
+          delete query.cds;
+        } else {
+          delete query.gmin;
+          delete query.gmax;
+          entropy.selectedCds = cds;
+          entropy.selectedPositions = [];
+        }
+      }
+    }
+
     const [entropyBars, entropyMaxYVal] = calcEntropyInView(tree.nodes, tree.visibility, entropy.selectedCds, entropy.showCounts);
     entropy.bars = entropyBars;
     entropy.maxYVal = entropyMaxYVal;
