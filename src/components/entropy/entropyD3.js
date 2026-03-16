@@ -225,9 +225,11 @@ EntropyChart.prototype._drawMainCds = function _drawMainCds() {
   if (this.selectedCds !== nucleotide_gene) {
     if (this.selectedCds.hasOwnProperty('topology')) {
       // Custom handling for topology annotated CDSs.
+
+      // Parse topology annotation.
       const topologyLocal = getTopologyLocalForCds(this.selectedCds);
       topologyLocal.forEach((topologySegment) => {
-        // Add rectangle.
+        // Add rectangle for the current segment.
         const width = (
           this.scales.xMain(Math.min(topologySegment[2] + 0.5, inViewNucB)) -
           this.scales.xMain(Math.max(topologySegment[1] - 0.5, inViewNucA))
@@ -244,6 +246,39 @@ EntropyChart.prototype._drawMainCds = function _drawMainCds() {
           .style("stroke-width", 2)
           .style("opacity", 1); // Segments _can't_ overlap when viewing an individual CDS
       });
+
+      // Add custom legend.
+      const legend = this._groups.mainCds
+        .append("g")
+        .attr("class", "topologyLegend")
+        .attr("transform", `translate(0, ${this.offsets.mainCdsRectHeight + this.offsets.tinySpace})`);
+      const boxSize = 10;
+      const textGap = 4;
+      const itemGap = 12;
+      let cursorX = 0;
+      const topologyTypes = [...new Set(topologyLocal.map((segment) => segment[0]))];
+      topologyTypes.forEach((topologyType) => {
+        const item = legend.append("g")
+          .attr("class", "topologyLegendItem")
+          .attr("transform", `translate(${cursorX}, 0)`);
+        item.append("rect")
+          .attr("x", 0)
+          .attr("y", 1)
+          .attr("width", boxSize)
+          .attr("height", boxSize)
+          .style("fill", topologyColors[topologyType] || darkGrey)
+          .style("stroke", "#666")
+          .style("stroke-width", 0.5);
+        item.append("text")
+          .attr("x", boxSize + textGap)
+          .attr("y", 0)
+          .attr("dominant-baseline", "hanging")
+          .style("font-size", "11px")
+          .style("fill", darkGrey)
+          .text(topologyType.charAt(0).toUpperCase() + topologyType.slice(1));
+        cursorX += boxSize + textGap + (topologyType.length * 6) + itemGap;
+      });
+
     } else {
       // Default handling for non-topology CDSs.
       this._groups.mainCds
