@@ -90,11 +90,11 @@ export const genotypeColors = [
 
 // Colors map for topology types.
 export const topologyColors = {
-  "signal": "#29339B",
-  "periplasm": "#B6D6CC",
-  "beta sheet": "#F1FEC6",
-  "outside": "#FF3A20",
-  "hatch": "#74A4BC",
+  "signal": "#44AA99",
+  "periplasm": "#88CCEE",
+  "hatch": "#332288",
+  "beta sheet": "#DDCC77",
+  "outside": "#AA4499",
 };
 
 // arrays for discrete color scales
