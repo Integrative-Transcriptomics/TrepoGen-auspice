@@ -2,6 +2,7 @@ import React from "react";
 import { useSelector } from "react-redux";
 import { useTranslation } from 'react-i18next';
 
+import CDSSelection, {CDSSelectionInfo} from "./cds-selection";
 import ColorBy, {ColorByInfo} from "./color-by";
 import DateRangeInputs, {DateRangeInfo} from "./date-range-inputs";
 import AnimationControls from "./animation-controls";
@@ -53,6 +54,9 @@ function Controls(): JSX.Element {
 
       <ControlHeader title={t("sidebar:Color By")} tooltip={ColorByInfo}/>
       <ColorBy />
+
+      <ControlHeader title={t("sidebar:CDS Selection")} tooltip={CDSSelectionInfo} />
+      <CDSSelection />
 
       <ControlHeader title={t("sidebar:Filter Data")} tooltip={FilterInfo}/>
       <FilterData measurementsOn={panelsToDisplay.includes("measurements")} />
