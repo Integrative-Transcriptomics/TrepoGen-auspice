@@ -14,5 +14,6 @@
 		"mapboxWordmark": false
 	},
 	"browserTitle": "Global Phylogenomics of Treponema pallidum - Nextstrain",
+	"finePrint": "*Project collaborators:* Simon Hackl, Jeffrey Furlong, Nicole Lieberman, Alexander Greninger, Kay Nieselt, Nicholas Thomson, Mathew Beale, Steven Marshall, Aleksander Palkowski, Javier Alfaro, Caroline Cameron, Simon Houston",
 	"serverAddress": "/nextstrain/charon"
 }
