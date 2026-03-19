@@ -119,12 +119,6 @@ export const DownloadButtons = ({dispatch, t, tree, entropy, metadata, colorBy, 
         />
       )}
       <Button
-        name="Genome sequences (FASTA)"
-        description={`Genome sequences for ${selectedTipsCount} samples.`}
-        icon={<MetaIcon width={iconWidth} selected />}
-        onClick={() => helpers.sequencesFASTA(dispatch, filePrefix, tree.nodes, tree.visibility, entropy.selectedCds)}
-      />
-      <Button
         name="Screenshot (SVG)"
         description="Screenshot of the current nextstrain display in SVG format; CC-BY licensed."
         icon={<PanelsGridIcon width={iconWidth} selected />}
