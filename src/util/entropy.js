@@ -378,7 +378,8 @@ export function parseTopologyLocalString(topology) {
  */
 export function normalizeTopologyLocalSegments(topologySegments, cds) {
   const normalized = [];
-  // Get the last segment to determine CDS length. Assume only one segment is present.
+  // Get the last CDS segment to validate coordinates. Assume only one segment is present.
+  // Coordinates are in localRange, i.e., 1-based nucleotide sequence positions relative to the start of the CDS.
   const cdsSegment = cds.segments.at(-1);
   topologySegments.forEach(([type, start, end]) => {
     let normStart = start;
