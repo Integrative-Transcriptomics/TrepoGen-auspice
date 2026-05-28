@@ -94,6 +94,7 @@ export const topologyColors = {
   "periplasm": "#88CCEE",
   "hatch": "#332288",
   "beta sheet": "#DDCC77",
+  "transmembrane": "#BBB262",
   "outside": "#AA4499",
 };
 
