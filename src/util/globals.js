@@ -84,19 +84,20 @@ export const distanceScale = scaleSqrt()
   .range([9, 3])
   .clamp([true]);
 
+// Genotype colors; based on the Muted qualitative colour scheme (https://sronpersonalpages.nl/~pault/).
 export const genotypeColors = [
-  "#60AA9E", "#D9AD3D", "#5097BA", "#E67030", "#8EBC66", "#E59637", "#AABD52", "#DF4327", "#C4B945", "#75B681"
+  "#332288", "#88CCEE", "#44AA99", "#117733", "#999933", "#DDCC77", "#CC6677", "#882255", "#AA4499",
 ];
 
-// Colors map for topology types.
+// Topology type colors; based on the Bright qualitative colour scheme (https://sronpersonalpages.nl/~pault/).
 export const topologyColors = {
-  "signal": "#DDCC77",
-  "hatch": "#332288",
-  "periplasm": "#88CCEE",
-  "inside": "#88CCEE",
-  "beta sheet": "#117733",
-  "transmembrane": "#44AA99",
-  "outside": "#AA4499",
+  "signal": "#228833",
+  "hatch": "#AA3377",
+  "periplasm": "#4477AA",
+  "inside": "#4477AA",
+  "beta sheet": "#CCBB44",
+  "transmembrane": "#CCBB44",
+  "outside": "#EE6677",
 };
 
 // arrays for discrete color scales
