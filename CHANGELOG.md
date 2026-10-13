@@ -1,7 +1,114 @@
 # Changelog
 
-## version 2.68.0 - 2026/01/20
+## version 3.0.0 - 2026/09/02
 
+
+
+
+
+> Auspice v3 is our first major release in almost 7 years (despite 73 feature releases!) which reflects our focus on keeping the interface for consuming projects as stable as possible.
+  A decision to render the map using vector tiles necessitated a major version bump as custom Auspice builds which configure the map will need to change.
+  We took this chance to make some other major changes to the CLI interface and move the codebase to a more modern style.
+
+
+* The map is now rendered client-side using vector tiles, configured via a MapLibre Style Spec JSON, and with [OpenFreeMap](https://openfreemap.org/) as our tile provider.
+  This should result in quicker loading times and sharper looking maps.
+  Since we are using a different tile provider the map may look slightly different, although we have tried to mirror our previous aesthetics as much as possible.
+  This is a breaking change for projects which used a custom map when building Auspice; please see our [updated API docs](https://docs.nextstrain.org/projects/auspice/en/stable/customise-client/api.html) or `DEV_DOCS.md` for full instructions on how to customise this, and how to convert mapbox styles JSON to the MapLibre Style Spec JSON we now use.
+
+
+* How datasets and narratives are specified in `auspice view` and `auspice develop` has changed.
+  A list of directories containing dataset JSONs and/or narrative markdown files are now provided as positional arguments, e.g. `auspice view datasets/` or `auspice view dir1/ dir2/`.
+  If there are multiple matching files for a certain URL then the first directory supplied to the CLI with a matching file is used.
+  The previous syntax (`--datasetDir X --narrativeDir Y`) remains but is now deprecated.
+  [#1967](https://github.com/nextstrain/auspice/pull/1967)
+
+* Auspice no longer includes default datasets.
+  This means `auspice` must be pointed at your own datasets and (optionally) narratives.
+  For development we still have `npm run fetch-test-data` which fetches datestamped datasets for testing.
+  [#2067](https://github.com/nextstrain/auspice/pull/2067)
+
+* Node.js v24 is now the minimum officially supported [#2066](https://github.com/nextstrain/auspice/pull/2066)
+
+* The Auspice package is now declared as using ES Modules not CJS (`import` syntax, not `require`).
+  There should be no changes needed for most consuming packages.
+  [#2066](https://github.com/nextstrain/auspice/pull/2066)
+  * If you have custom JS/TS code for server handlers, i.e. you are using `auspice view --handlers <JS|TS>`, then the format of your custom code (CJS vs ESM) depends on a few factors.
+    Typically, the consuming project's `package.json` sets `"type": "module"` and your custom code should follow that, however you can use `.cjs` or `.mjs` to specify the syntax explicitly.
+    If you are using CJS then you must also ensure the `module.exports` are statically defined.
+  * There are no changes to how Auspice consumes custom code for the client (frontend) via `auspice build --extend`
+
+
+* The Auspice server code is now (almost entirely) in TypeScript.
+  Running Auspice from source works directly from TS files as Node.js v24 can strip types, however when Auspice is installed via `npm` (i.e. into `node_modules`) this isn't possible; we thus transpile the TS code into JS at npm publish time.
+  See `DEV_DOCS.md` for more details.
+  [#2066](https://github.com/nextstrain/auspice/pull/2066), [#2088](https://github.com/nextstrain/auspice/pull/2088)
+* The ability for custom Auspice builds (via build-time extensions) to use Google Analytics has been removed.
+  This functionality was deprecated in version 2.44.0.
+  [#2082](https://github.com/nextstrain/auspice/pull/2082)
+
+* (Dev-only) Performance harnesses to profile function times and render-equivalence added.
+  [#2078](https://github.com/nextstrain/auspice/pull/2078)
+
+* (Dev-only) We no longer use Heroku for Auspice-specific review apps, instead leveraging nextstrain.org and auspice.us review apps for testing purposes. [#2067](https://github.com/nextstrain/auspice/pull/2067)
+
+* (Dev-only) Auspice is now released via [a Github Actions workflow](https://github.com/nextstrain/auspice/actions/workflows/release.yaml).
+  Auspice 2.73.2 was the first version published using this.
+  The version string is now set only in `package.json`, with the CLI & frontend code both reading that value.
+  [#2089](https://github.com/nextstrain/auspice/pull/2089), [#2092](https://github.com/nextstrain/auspice/pull/2092)
+
+
+## version 2.73.2 - 2026/08/19
+
+* Remove warning about large trees when viewing the dataset on MicrobeTrace, since MicrobeTrace v2.2 includes improvements for loading larger trees ([#2087](https://github.com/nextstrain/auspice/pull/2087))
+
+## version 2.73.1 - 2026/08/05
+
+* Bugfix: narrative slide transitions for div-only trees could result in an empty-tree. ([#2091](https://github.com/nextstrain/auspice/pull/2091))
+
+## version 2.73.0 - 2026/07/07
+
+* Added support for offline use through the `AUSPICE_ENABLE_SERVICE_WORKER` environment variable read at build-time. This is added primarily for auspice.us, but should work for any Auspice server where assets are served at the root path.
+  ([#2062](https://github.com/nextstrain/auspice/pull/2062))
+
+* Added extension `enableDatasetEditor` to turn on the ability to edit a subset
+  of dataset features and colors, where changes are only saved locally.
+  ([#2046](https://github.com/nextstrain/auspice/pull/2046))
+
+## version 2.72.0 - 2026/06/30
+
+
+* Downloaded JSONs (via the "download data" button at the bottom of the page) are now created from internal state rather than re-fetching the original JSON.
+This allows additional dropped-on metadata to be exported, as well as allowing the functionality to work in auspice.us.
+Additionally, the current state of the UI (such as the color-by, which panels are toggled on etc) are saved into the downloaded JSON where possible.
+([#2055](https://github.com/nextstrain/auspice/pull/2055))
+
+* Dataset footers (shown at the bottom of the page) now must be defined in the dataset JSON itself.
+  The remaining hardcoded footers have been removed from Auspice and added to their respective datasets, see [#980](https://github.com/nextstrain/auspice/issues/980) for a full list.
+  ([#2073](https://github.com/nextstrain/auspice/pull/2073))
+
+* Documentation related to required NodeJS versions and dev docs has been updated
+  ([#2072](https://github.com/nextstrain/auspice/pull/2072))
+
+#### Internal changes
+
+* More TypeScript usage ([#2054](https://github.com/nextstrain/auspice/pull/2054), [#2058](https://github.com/nextstrain/auspice/pull/2058))
+
+## version 2.71.0 - 2026/05/25
+
+* Dragging on extra metadata is now more powerful. Columns which match existing colorings will now be merged, and Augur node-data JSONs can also be used. See [Drag-and-drop extra metadata](https://docs.nextstrain.org/projects/auspice/en/stable/advanced-functionality/drag-drop-csv-tsv.html) for more. ([#2039](https://github.com/nextstrain/auspice/pull/2039))
+
+
+## version 2.70.0 - 2026/05/13
+
+
+* Expose sharing options in the dataset JSON (`.meta.sharing`) to provide fine-grained control on which assets Auspice offers for download. See [view settings docs](https://docs.nextstrain.org/projects/auspice/en/stable/advanced-functionality/view-settings.html) for more. ([#2047](https://github.com/nextstrain/auspice/pull/2047))
+
+## version 2.69.0 - 2026/04/14
+
+* Allow protein-only datasets, i.e. a dataset whose genome annotation is missing a nuc block but with CDSs defined. This work is in tandem with [this Augur PR](https://github.com/nextstrain/augur/pull/1958). ([Auspice PR #2040](https://github.com/nextstrain/auspice/pull/2040))
+
+## version 2.68.0 - 2026/01/20
 
 #### Major changes
 
@@ -18,24 +125,20 @@
 
 ## version 2.67.0 - 2025/11/03
 
-
 * Mutations in a node-info modal (via tip click or shift+branch click) are now clickable. Clicking on a mutation will colour the tree by the genotypes at that position. Shift+clicking will append that position to the current genotype colouring (if possible), or remove it if it's already part of it. Command clicking (with or without shift) will behave similarly but filter the tree via the specific mutated state instead of changing the colouring. ([#2018](https://github.com/nextstrain/auspice/pull/2018))
 * Shift-clicking bars in the entropy panel will now add the position to the existing color-by (as long as the gene is the same), or remove it if it was already part of the color-by. ([#2019](https://github.com/nextstrain/auspice/pull/2019))
 * Added support for Node.js version 24 and its corresponding NPM version (11). ([#2012](https://github.com/nextstrain/auspice/pull/2012))
 
 ## version 2.66.0 - 2025/09/05
 
-
 * Fixed a bug that prevented drag-and-drop metadata files from being parsed that was introduced in version 2.64.0 ([#2007](https://github.com/nextstrain/auspice/pull/2007))
 * Added SVG-download support for the measurements panel. ([#2005](https://github.com/nextstrain/auspice/pull/2005))
 
 ## version 2.65.0 - 2025/09/02
 
-
 * "show all branch labels" toggle has been updated to only show labels for visible branches, i.e. branches of selected tips after applying filters ([#2004](https://github.com/nextstrain/auspice/pull/2004))
 
 ## version 2.64.0 - 2025/08/15
-
 
 * Link-outs are explicitly disabled for v1 datasets because the nextstrain.org API does not support the v1 -> v2 conversion. ([#2002](https://github.com/nextstrain/auspice/pull/2002))
 * Added a `treeZoom=selected` query to load trees at the same zoom level after the "zoom to selected" button has been pressed, where applicable. See [the view settings docs](https://docs.nextstrain.org/projects/auspice/en/latest/advanced-functionality/view-settings.html) for more details. ([#1321](https://github.com/nextstrain/auspice/pull/1321))
@@ -54,7 +157,6 @@
 
 ## version 2.63.1 - 2025/06/04
 
-
 * Fixed a bug where datasets without the (optional!) `display_defaults` would crash, which included newick files dragged onto auspice.us. ([#1986](https://github.com/nextstrain/auspice/pull/1986))
 
 ## version 2.63.0 - 2025/06/02
@@ -71,7 +173,6 @@
 * Dropped support for Node.JS versions 16 & 18 and their corresponding NPM versions (7 & 8). ([#1975](https://github.com/nextstrain/auspice/pull/1975))
 
 ## version 2.62.0 - 2025/01/21
-
 
 * Added a new color tree by measurements feature.
   Clicking on a group in the measurements panel will add a new coloring to the tree,
@@ -1583,7 +1684,7 @@ This also fixed potential issues related to loading datasets where the URL queri
 ## version 1.14.0 - 2018/02/27
 
 ### Features
-* Strain search (using [awesomplete](https://projects.verou.me/awesomplete/)).
+* Strain search (using [awesomplete](https://nudeui.github.io/awesomplete/)).
 This highlights the path to a single tip and increases the tip radius.
 Strain is stored in the URL query (`s=...`) and can be restored via URL.
 Selected strain also appears in the info panel (top of screen).

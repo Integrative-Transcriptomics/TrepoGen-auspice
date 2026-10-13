@@ -48,6 +48,14 @@ You can customise the default Auspice server by supplying your own handlers for 
 See :ref:`the API documentation <server-api-supplying-custom-handlers>` for how to define these and provide them to `auspice view`.
 
 
+Offline Use
+======================================
+
+Setting the environment variable ``AUSPICE_ENABLE_SERVICE_WORKER=true`` when running ``auspice build`` will generate and register a `service worker <https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API>`_ that enables use without a network connection. It is disabled by default.
+
+The service worker is registered at the site root and controls the whole origin, so it should only be enabled for deployments served at the root path. Because the worker controls the entire origin and is cleaned up by serving the deployment again without it enabled, **do not enable it for ephemeral origin deployments** (e.g. one-off review apps): once such an origin is destroyed there is no way to automatically clean up a registered worker and it is left to the user or their browser.
+
+
 AGPL Source Code Requirement
 ============================
 
@@ -73,6 +81,6 @@ It should be simple to deploy a custom version of auspice to any server, but we 
 Deploying to Heroku is straightforward, but there are a few points to note:
 
 1. You must set the config var ``HOST=0.0.0.0`` for the app.
-2. You will need to either create a ``Procfile`` or a ``npm run start`` script which calls ``auspice view`` (or ``npx auspice view`` depending on how you implement auspice).
-3. Make sure the datasets to be served are either (a) included in your git repo or (b) downloaded by the heroku build pipeline. `We use option (b) <https://github.com/nextstrain/auspice/blob/master/package.json>`_ by specifying a npm script called ``heroku-postbuild``.
-
+2. You will need to either create a ``Procfile`` or a ``npm run start`` script which calls ``auspice view`` (or some equivalent).
+3. Datasets & narratives can be sourced by providing positional argument(s) to ``auspice view`` or by writing your own request handlers for the server.
+   If you need to download datasets at heroku-buildtime you can use the ``heroku-postbuild`` npm script.

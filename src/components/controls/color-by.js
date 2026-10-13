@@ -5,7 +5,6 @@ import { debounce } from "lodash";
 import { sidebarField } from "../../globalStyles";
 import { controlsWidth, nucleotide_gene } from "../../util/globals";
 import { changeColorBy } from "../../actions/colors";
-import { analyticsControlsEvent } from "../../util/googleAnalytics";
 import { isColorByGenotype, decodeColorByGenotype, encodeColorByGenotype, decodePositions, getCdsLength } from "../../util/getGenotype";
 import CustomSelect from "./customSelect";
 
@@ -103,12 +102,12 @@ class ColorBy extends React.Component {
           positions: decodePositions(positionSelected, getCdsLength(this.props.genomeMap, geneSelected))
         });
 
-        if (genotype && genotype!==this.props.colorBy) {
+        if (genotype && genotype !== this.props.colorBy) {
           this.dispatchColorByGenotype(genotype);
         }
       }
     } else {
-      this.dispatchColorBy(colorBySelected);
+      this.props.dispatch(changeColorBy(colorBySelected));
     }
   }
 
@@ -125,21 +124,18 @@ class ColorBy extends React.Component {
     return true;
   }
 
-  dispatchColorBy(colorBy, name = colorBy) {
-    analyticsControlsEvent(`color-by-${name}`);
-    this.props.dispatch(changeColorBy(colorBy));
-  }
-
   dispatchColorByGenotype = debounce((genotype) => {
-    this.dispatchColorBy(genotype, "genotype");
+    this.props.dispatch(changeColorBy(genotype));
   }, 400);
 
   getGtGeneOptions() {
     if (!this.props.genomeMap?.length) return [];
-    const options = [
-      // Nuc is first option, especially helpful when there are many many genes/CDSs
-      {value: nucleotide_gene, label: "nucleotide"}
-    ]
+    const proteinOnly = this.props.genomeMap?.[0].proteinOnly === true;
+    const options = proteinOnly ?
+      [] :
+      [ // Nuc is first option, especially helpful when there are many many genes/CDSs
+        {value: nucleotide_gene, label: "nucleotide"}
+      ]
     this.props.genomeMap[0].genes.forEach((gene) => {
       /**
        * A lot of the code in this file refers to "gene(s)", however the actual dropdown

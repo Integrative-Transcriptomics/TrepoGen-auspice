@@ -1,0 +1,129 @@
+/* eslint no-console: off */
+import path from "path";
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+import express from "express";
+import webpack from "webpack";
+import webpackDevMiddleware from "webpack-dev-middleware";
+import webpackHotMiddleware from "webpack-hot-middleware";
+import * as utils from "./utils.ts";
+import * as view from "./view.ts";
+import { version } from './version.ts';
+import _chalk from 'chalk';
+/* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+const chalk = _chalk as any as import('chalk').Chalk;
+import { processPathArguments } from "./server/processPaths.ts";
+
+const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const generateWebpackConfig = require("../webpack.config.cjs").default;
+const SUPPRESS = require('argparse').Const.SUPPRESS;
+
+const addParser = (parser): void => {
+  const description = `Launch auspice in development mode.
+    This runs a local server and uses hot-reloading to allow automatic updating as you edit the code.
+    NOTE: there is a speed penalty for this ability and this should never be used for production.
+    `;
+
+  const subparser = parser.addParser('develop', {addHelp: true, description});
+  subparser.addArgument('--verbose', {action: "storeTrue", help: "Print more verbose progress messages in the terminal."});
+  subparser.addArgument('--extend', {action: "store", metavar: "JSON", help: "Client customisations to be applied. See documentation for more details. Note that hot reloading does not currently work for these customisations."});
+  subparser.addArgument('--handlers', {action: "store", metavar: "JS", help: "Overwrite the provided server handlers for client requests. See documentation for more details."});
+  view.addDatasetNarrativePathArgs(subparser)
+  subparser.addArgument('--includeTiming', {action: "storeTrue", help: "Do not strip timing functions. With these included the browser console will print timing measurements for a number of functions."});
+
+  /* there are some options which we deliberately do not document via `--help`. See build.js for explanations. */
+  subparser.addArgument('--gh-pages', {action: "store", help: SUPPRESS});
+};
+
+
+const run = async (args): Promise<void> => {
+  const dataPaths = processPathArguments(args)
+
+  /* Basic server set up */
+  const app = express();
+  app.set('port', process.env.PORT || 4000);
+  app.set('host', process.env.HOST || "localhost");
+
+  const baseDir = path.resolve(__dirname, "..");
+  utils.verbose(`Serving index / favicon etc from  "${baseDir}"`);
+  app.get("/favicon.png", (_req, res) => {res.sendFile(path.join(baseDir, "favicon.png"));});
+
+  /* webpack set up */
+  const extensionPath = args.extend ? path.resolve(args.extend) : undefined;
+  const webpackConfig = generateWebpackConfig({extensionPath, devMode: true});
+  const compiler = webpack(webpackConfig);
+
+  /* variables available to babel (which is called by webpack) */
+  process.env.BABEL_INCLUDE_TIMING_FUNCTIONS = args.includeTiming;
+  process.env.BABEL_ENV = "development";
+  process.env.BABEL_EXTENSION_PATH = extensionPath;
+
+  /* Redirects / to webpack-generated index */
+  app.use((req, _res, next) => {
+    if (!/^\/__webpack_hmr|^\/charon|\.[A-Za-z0-9]{1,5}$/.test(req.path)) {
+      req.url = webpackConfig.output.publicPath;
+    }
+    next();
+  });
+
+  app.use((webpackDevMiddleware)(
+    compiler,
+    {logLevel: 'warn', publicPath: webpackConfig.output.publicPath}
+  ));
+  app.use((webpackHotMiddleware)(
+    compiler,
+    {log: console.log, path: '/__webpack_hmr', heartbeat: 10 * 1000}
+  ));
+
+  let handlerMsg = "";
+  if (args.gh_pages) {
+    handlerMsg = view.serveRelativeFilepaths({app, dir: path.resolve(args.gh_pages)});
+  } else if (args.handlers) {
+    handlerMsg = await view.customRouteHandlers(app, path.resolve(args.handlers));
+  } else {
+    handlerMsg = view.defaultRouteHandlers({app, dataPaths});
+  }
+  /* Handle unhandled API (charon) routes */
+  app.get("/charon*", (req, res) => {
+    const errorMessage = "Query unhandled -- " + req.originalUrl;
+    utils.warn(errorMessage);
+    return res.status(500).type("text/plain").send(errorMessage);
+  });
+
+  app.get("*", (_req, res) => res.redirect("/"));
+
+  const server = app.listen(app.get('port'), app.get('host'), () => {
+    utils.log("\n\n---------------------------------------------------");
+    utils.log("Auspice now running in development mode.");
+    const host = app.get('host');
+    const {port} = server.address();
+    console.log(chalk.blueBright("Access the client at: ") + chalk.blueBright.underline.bold(`http://${host}:${port}`));
+    utils.log(`Serving auspice version ${version}${args.extend ? " with extensions" : ""}.`);
+    utils.log(handlerMsg);
+    utils.log("---------------------------------------------------\n\n");
+  }).on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      utils.error(`Port ${app.get('port')} is currently in use by another program.
+      You must either close that program or specify a different port by setting the shell variable "$PORT". Note that on MacOS / Linux ${chalk.yellow(`lsof -n -i :${app.get('port')} | grep LISTEN`)} should identify the process currently using the port.`);
+    }
+
+    if (error.code === 'ENOTFOUND') {
+      utils.error(`Host ${app.get('host')} is not a valid address. The server could not be started. If you did not provide a HOST environment variable when starting the app you may have HOST already set in your system. You can either change that variable, or override HOST when starting the app.
+
+      Example commands to fix:
+        ${chalk.yellow('HOST="localhost" auspice develop <PATH>')}
+        ${chalk.yellow('HOST="localhost" npm run develop -- <PATH>')}`);
+    }
+
+    utils.error(`Uncaught error in app.listen(). Code: ${error.code}`);
+  });
+
+
+};
+
+export {
+  addParser,
+  run
+};

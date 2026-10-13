@@ -14,7 +14,7 @@ type Strand = '+' | '-' // other GFF-valid options are '.' and '?'
 /**
  * Specifies the range of the each segment's corresponding position in the genome,
  * or defines the range of the genome (chromosome) itself.
- * Start is always less than or equal to end. 
+ * Start is always less than or equal to end.
  * Start is 1-based, End is 1-based closed. I.e. GFF.
  */
 type RangeGenome = [number, number]
@@ -35,6 +35,11 @@ interface ChromosomeMetadata {
 
 interface Chromosome {
   name: string
+
+  /* For protein only analyses th nucleotide range (i.e. the chromosome) isn't known. Auspice will create it to span the
+  ranges reported by the proteins (CDSs), but it's a placeholder and there won't be any nucleotide mutations annotated */
+  proteinOnly: boolean
+
   range: RangeGenome
   genes: Gene[]
   metadata: ChromosomeMetadata
@@ -62,7 +67,7 @@ interface CDS {
 
 type Phase = 0 | 1 | 2
 
-type Frame = 0 | 1 | 2
+type Frame = 0 | 1 | 2 | 'unknown'
 
 interface CdsSegment {
   rangeLocal: RangeLocal
@@ -79,8 +84,7 @@ interface CdsSegment {
 }
 
 /**
- * This is in flux -- Richard's working on an updated representation for the JSON
- * Here we do our best to massage the JSON annotations block into a hierarchical
+ * Convert JSON annotations block into a hierarchical
  * representation of Genome → Chromosome[] → Gene[] → CDS[] → CDS_Segment[].
  * The intention is for this structure to entirely replace the various other pieces of redux
  * state such as 'annotations', 'geneMap', 'geneLengths', 'genomeAnnotations'.
@@ -103,24 +107,24 @@ export const genomeMap = (annotations: UnknownJsonObject): Chromosome[] => {
     .filter(([name,]) => name==='nuc')
     .map(([, annotation]) => annotation)[0];
 
-  if (!nucAnnotation) {
-    throw new Error("Genome annotation missing 'nuc' definition");
-  }
-  if (typeof nucAnnotation !== 'object') {
-    throw new Error("Genome annotation for 'nuc' is not a JSON object.");
-  }
-  if (!('start' in nucAnnotation) || !('end' in nucAnnotation)) {
-    throw new Error("Genome annotation for 'nuc' missing start or end");
-  }
-  if (typeof nucAnnotation.start !== 'number' || typeof nucAnnotation.end !== 'number') {
-    throw new Error("Genome annotation for 'nuc.start' or 'nuc.end' is not a number.");
-  }
-  if ('strand' in nucAnnotation && nucAnnotation.strand === '-') {
-    throw new Error("Auspice can only display genomes represented as positive strand." +
-      "Note that -ve strand RNA viruses are typically annotated as 5' → 3'.");
-  }
+  let rangeGenome: RangeGenome | undefined = undefined;
+  if (nucAnnotation) {
+    if (typeof nucAnnotation !== 'object') {
+      throw new Error("Genome annotation for 'nuc' is not a JSON object.");
+    }
+    if (!('start' in nucAnnotation) || !('end' in nucAnnotation)) {
+      throw new Error("Genome annotation for 'nuc' missing start or end");
+    }
+    if (typeof nucAnnotation.start !== 'number' || typeof nucAnnotation.end !== 'number') {
+      throw new Error("Genome annotation for 'nuc.start' or 'nuc.end' is not a number.");
+    }
+    if ('strand' in nucAnnotation && nucAnnotation.strand === '-') {
+      throw new Error("Auspice can only display genomes represented as positive strand." +
+        "Note that -ve strand RNA viruses are typically annotated as 5' → 3'.");
+    }
 
-  const rangeGenome: RangeGenome =  [nucAnnotation.start, nucAnnotation.end];
+    rangeGenome = [nucAnnotation.start, nucAnnotation.end];
+  }
 
 
   /* Group by genes -- most JSONs will not include this information, so it'll essentially be
@@ -177,8 +181,9 @@ export const genomeMap = (annotations: UnknownJsonObject): Chromosome[] => {
   }
 
   const chromosome: Chromosome = {
+    proteinOnly: rangeGenome === undefined,
     name: 'source',
-    range: rangeGenome,
+    range: rangeGenome || nucRangeToSpanGenes(genes),
     genes,
     metadata
   }
@@ -202,6 +207,18 @@ export const entropyCreateState = (genomeAnnotations: UnknownJsonObject): unknow
   return defaultEntropyState();
 };
 
+function nucRangeToSpanGenes(genes: Gene[]): RangeGenome {
+  let [min, max] = [Infinity, 0];
+  for (const gene of genes) {
+    for (const cds of gene.cds) {
+      for (const segment of cds.segments) {
+        if (segment.rangeGenome[0] < min) min = segment.rangeGenome[0];
+        if (segment.rangeGenome[1] > max) max = segment.rangeGenome[1];
+      }
+    }
+  }
+  return [min, max]
+}
 
 function validColor(color: string | undefined | unknown): false | string {
   if (typeof color !== "string") return false;
@@ -222,7 +239,7 @@ function* nextColorGenerator(): Generator<string> {
 function cdsFromAnnotation(
   cdsName: string,
   annotation: UnknownJsonObject,
-  rangeGenome: RangeGenome,
+  rangeGenome: RangeGenome | undefined,
   defaultColor: string | void,
 ): CDS {
   const invalidCds: CDS = {
@@ -238,13 +255,13 @@ function cdsFromAnnotation(
     /** GFF allows for strands '?' (features whose strandedness is relevant, but unknown) and '.' (features that are not stranded),
      * which are represented by augur as '?' and null, respectively. (null comes from `None` in python.)
      * In both cases it's not a good idea to make an assumption of strandedness, or to assume it's even a CDS. */
-    console.error(`[Genome annotation]  ${cdsName} has strand ` + 
+    console.error(`[Genome annotation]  ${cdsName} has strand ` +
       (annotation.strand !== undefined ? annotation.strand : '(missing)') +
       ". This CDS will be ignored.");
     return invalidCds;
   }
   const positive = strand==='+';
-  
+
   let length = 0;  // rangeLocal length
   const segments: CdsSegment[] = [];
   if (annotation.start && annotation.end) {
@@ -254,17 +271,20 @@ function cdsFromAnnotation(
       return invalidCds;
     }
 
-    /* The simplest case is where a JSON annotation block defines a
-    contiguous CDS, however it may be a wrapping CDS (i.e. cds end > genome
-    end */
-    if (annotation.end <= rangeGenome[1]) {
-      length = annotation.end-annotation.start+1;    
+    /** The simplest case is where a JSON annotation block defines a
+     *  contiguous CDS, however it may be a wrapping CDS (i.e. cds end > genome
+     *  end. (Note: For such wrapping genes to be interpreted correctly the annotations JSON
+     *  needs to define a nuc block so we have a `rangeGenome`, without this we can still parse
+     *  the CDS we just won't interpret it as wrapping.)
+     */
+    if (!rangeGenome || annotation.end <= rangeGenome[1]) {
+      length = annotation.end-annotation.start+1;
       segments.push({
         segmentNumber: 1,
         rangeLocal: [1, length],
         rangeGenome: [annotation.start, annotation.end],
         phase: 0,
-        frame: _frame(annotation.start, annotation.end, 0, rangeGenome[1], positive),
+        frame: _frame(annotation.start, annotation.end, 0, rangeGenome?.[1], positive),
       })
     } else {
       /* We turn this into the equivalent JsonSegments to minimise code duplication */
@@ -300,7 +320,7 @@ function cdsFromAnnotation(
         rangeLocal: [previousRangeLocalEnd+1, previousRangeLocalEnd+segmentLength],
         rangeGenome: [segment.start, segment.end],
         phase,
-        frame: _frame(segment.start, segment.end, phase, rangeGenome[1], positive)
+        frame: _frame(segment.start, segment.end, phase, rangeGenome?.[1], positive)
       };
       segments.push(s);
       length += segmentLength;
@@ -358,17 +378,22 @@ function _frame(
 
   phase: Phase,
 
-  /** 1 based */
-  genomeLength: number,
+  /** 1 based. May not be known (undefined) */
+  genomeLength: number|undefined,
   positiveStrand: boolean,
 ): Frame {
   /* TypeScript cannot infer the exact range of values from a modulo operation,
    * so it is manually provided.
    */
+  if (positiveStrand) {
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    return (start + phase - 1) % 3 as 0 | 1 | 2;
+  }
+  if (!genomeLength) {
+    return 'unknown' // frame unknown if we don't know the length
+  }
   // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-  return (positiveStrand ?
-    (start+phase-1)%3 :
-    Math.abs((end-phase-genomeLength)%3)) as 0 | 1 | 2;
+  return Math.abs((end-phase-genomeLength)%3) as 0 | 1 | 2;
 }
 
 /**
@@ -502,3 +527,85 @@ function _isCdsWrapping(
   }
   return false; // fallthrough
 }
+
+
+/**
+ * Inverse of genomeMap(): reconstructs the
+ * `genome_annotations` JSON object from the Chromosome[] genomeMap structure.
+ */
+export const genomeMapToGenomeAnnotations = (genomeMap: Chromosome[]): UnknownJsonObject => {
+  const chromosome = genomeMap[0];
+  if (!chromosome) return {};
+
+  const annotations: Record<string, Record<string, unknown>> = {};
+
+  annotations.nuc = { start: chromosome.range[0], end: chromosome.range[1] };
+
+  for (const gene of chromosome.genes) {
+    for (const cds of gene.cds) {
+      const annotation: Record<string, unknown> = {};
+      annotation.strand = cds.strand;
+
+      if (cds.isWrapping && cds.segments.length === 2) {
+        /*
+         * Wrapping CDSs were originally a single contiguous CDS whose end
+         * position exceeded the genome length. During ingestion, these are
+         * split into two segments. We merge them back, but the original
+         * single start/end representation used a convention where end >
+         * genome length (e.g. start=93, end=110 on a 100nt genome).
+         * We reconstruct this, but if the original JSON actually used an
+         * explicit two-segment representation for a wrapping CDS, we would
+         * not be able to distinguish that case from an auto-split one.
+         */
+        const genomeLength = chromosome.range[1];
+        const positive = cds.strand === '+';
+        /* For +ve strand: segment[0] is the 5' portion (higher genome coords),
+           segment[1] is the wrapped portion (lower genome coords).
+           For -ve strand: segments were reversed during ingestion, so
+           segment[0] is at genome start, segment[1] is the 5' end. */
+        const seg5prime = positive ? cds.segments[0] : cds.segments[1];
+        const segWrapped = positive ? cds.segments[1] : cds.segments[0];
+        annotation.start = seg5prime.rangeGenome[0];
+        annotation.end = segWrapped.rangeGenome[1] + genomeLength;
+      } else if (cds.segments.length === 1) {
+        annotation.start = cds.segments[0].rangeGenome[0];
+        annotation.end = cds.segments[0].rangeGenome[1];
+      } else {
+        /*
+         * Multi-segment CDSs (spliced/slippage) are stored as an explicit
+         * segments array. The original JSON used the same representation,
+         * so this is a faithful reconstruction.
+         */
+        annotation.segments = cds.segments.map((seg) => ({
+          start: seg.rangeGenome[0],
+          end: seg.rangeGenome[1],
+        }));
+      }
+
+      /*
+       * Colors may not match the original JSON: if the original CDS did not
+       * specify a color, one was auto-assigned from a rotating palette during
+       * ingestion. We always include the color here since we cannot
+       * distinguish auto-assigned from explicitly provided colors.
+       */
+      if (cds.color) annotation.color = cds.color;
+
+      if (cds.displayName) annotation.display_name = cds.displayName;
+      if (cds.description) annotation.description = cds.description;
+
+      /*
+       * The `gene` field is only needed when a gene groups multiple CDSs,
+       * or when the gene name differs from the CDS name. If gene.name
+       * equals cds.name (the common case of 1 gene = 1 CDS), we omit
+       * it to match the typical original JSON structure.
+       */
+      if (gene.name !== cds.name) {
+        annotation.gene = gene.name;
+      }
+
+      annotations[cds.name] = annotation;
+    }
+  }
+
+  return annotations;
+};

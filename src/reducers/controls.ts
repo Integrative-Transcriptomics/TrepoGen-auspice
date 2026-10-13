@@ -15,7 +15,6 @@ import { hasMultipleGridPanels } from "../actions/panelDisplay";
 import { Distance } from "../components/tree/phyloTree/types";
 import { MeasurementsDisplay } from "./measurements/types";
 
-
 export interface ColorScale {
   colorBy: string
   continuous: boolean
@@ -95,7 +94,9 @@ interface AvailableAPIData {
     }[]
 }
 
-export type ScaleType = "ordinal" | "categorical" | "continuous" | "temporal" | "boolean"
+export const SCALE_TYPE_VALUES = ["ordinal", "categorical", "continuous", "temporal", "boolean"] as const;
+
+export type ScaleType = typeof SCALE_TYPE_VALUES[number];
 
 export interface ScatterVariables {
   showBranches?: boolean
@@ -175,7 +176,7 @@ export interface BasicControlsState {
   mapAnimationDurationInMilliseconds: number
   mapAnimationShouldLoop: boolean
   mapAnimationStartDate: unknown
-  modal: 'download' | 'linkOut' | 'datasetSelector' | null
+  modal: 'download' | 'linkOut' | 'datasetSelector' | 'datasetEditor' | 'colorByEditor' | null
   normalizeFrequencies: boolean
   panelLayout: string
   panelsAvailable: string[]
@@ -524,21 +525,8 @@ const Controls = (state: ControlsState = getDefaultControlsState(), action): Con
       return Object.assign({}, state, { sidebarOpen: action.value });
     case types.TOGGLE_LEGEND:
       return Object.assign({}, state, { legendOpen: action.value });
-    case types.ADD_EXTRA_METADATA: {
-      for (const colorBy of Object.keys(action.newColorings)) {
-        state.coloringsPresentOnTree.add(colorBy);
-      }
-      let newState = Object.assign({}, state, { coloringsPresentOnTree: state.coloringsPresentOnTree, filters: state.filters });
-      if (action.newGeoResolution && !state.panelsAvailable.includes("map")) {
-        newState = {
-          ...newState,
-          geoResolution: action.newGeoResolution.key,
-          canTogglePanelLayout: hasMultipleGridPanels([...state.panelsToDisplay, "map"]),
-          panelsAvailable: [...state.panelsAvailable, "map"],
-          panelsToDisplay: [...state.panelsToDisplay, "map"]
-        };
-      }
-      return newState;
+    case types.UPDATE_METADATA: {
+      return Object.assign({}, state, action.controls);
     }
     case types.REMOVE_METADATA: {
       const coloringsPresentOnTree = new Set(state.coloringsPresentOnTree);

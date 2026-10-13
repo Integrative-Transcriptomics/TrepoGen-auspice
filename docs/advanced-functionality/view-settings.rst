@@ -174,3 +174,26 @@ The following query options are specifically for the measurements panel.
 | ``mf_<field_name>``  | | Filters for the measurements data. Multiple values for  | | ``mf_reference_strain=A/Alabama/5/2010``                   |
 |                      | | the same field are specified by multiple query params   | | ``mf_clade_reference=145S.2&mf_clade_reference=158N/189K`` |
 +----------------------+-----------------------------------------------------------+--------------------------------------------------------------+
+
+
+Sharing: control which assets Auspice exposes for download
+----------------------------------------------------------
+
+The ``.meta.sharing`` object controls which options Auspice exposes in the download-data modal.
+By default all options are available for download.
+(You can open the download-data modal via a button in the footer or by pressing "d".)
+
+.. code:: json
+
+  "sharing": {
+    "dataset_json": true,
+    "metadata_tsv": true,
+    "authors": true,
+    "trees": true,
+    "entropy": true,
+    "screenshot": true
+  },
+
+.. note::
+
+    GISAID datasets have different default values to comply with data sharing agreements.
