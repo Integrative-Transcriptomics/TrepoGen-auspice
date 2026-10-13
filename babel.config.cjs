@@ -1,0 +1,50 @@
+const chalk = require('chalk');
+
+const verbose = (msg) => {
+  /* Same fn as in `cli/utils.ts` -- see DEV_DOCS */
+  if (global.AUSPICE_VERBOSE) console.log(chalk.greenBright(`[verbose]\t${msg}`));
+};
+
+/* What variables does this config depend on?
+ * process.env.BABEL_EXTENSION_PATH -- a resolved path
+ * api.env -- this is process.env.BABEL_ENV if it exists (it should)
+ * process.env.BABEL_INCLUDE_TIMING_FUNCTIONS
+ */
+
+module.exports = function babelConfig(api) {
+  verbose(`Generating Babel Config`);
+  const presets = [
+    [
+      "@babel/preset-env",
+      {
+        useBuiltIns: "entry",
+        targets: !api.env('test') ? "cover 95%" : { node: 'current' },
+        corejs: 3,
+        bugfixes: true
+      }
+    ],
+    "@babel/preset-react",
+    "@babel/preset-typescript"
+  ];
+  const plugins = [
+    ["@babel/plugin-proposal-decorators", { legacy: true }],
+    "@babel/plugin-proposal-class-properties",
+    "babel-plugin-styled-components",
+    "@babel/plugin-syntax-dynamic-import",
+    "lodash"
+  ];
+  if (api.env("development")) {
+    plugins.push(["react-hot-loader/babel", { safetyNet: false }]);
+  }
+  if (api.env('test')) {
+    plugins.push("babel-plugin-transform-import-meta");
+  }
+  if (process.env.BABEL_INCLUDE_TIMING_FUNCTIONS === "false") {
+    plugins.push(["strip-function-call", {strip: ["timerStart", "timerEnd"]}]);
+  }
+  api.cache(true);
+  return {
+    presets,
+    plugins
+  };
+};

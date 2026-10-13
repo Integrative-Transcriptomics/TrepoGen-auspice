@@ -11,7 +11,7 @@ import { countTraitsAcrossTree, calcTotalTipsInTree, gatherTraitNames } from "..
 import { calcEntropyInView, getCdsByName } from "../util/entropy";
 import { treeJsonToState } from "../util/treeJsonProcessing";
 import { castIncorrectTypes } from "../util/castJsonTypes";
-import { entropyCreateState, genomeMap as createGenomeMap } from "../util/entropyCreateStateFromJsons";
+import { genomeMap as createGenomeMap } from "../util/entropyCreateStateFromJsons";
 import { calcNodeColor } from "../util/colorHelpers";
 import { calcColorScale, createVisibleLegendValues } from "../util/colorScale";
 import { computeMatrixFromRawData, checkIfNormalizableFromRawData } from "../util/processFrequencies";
@@ -24,6 +24,7 @@ import { hasMultipleGridPanels } from "./panelDisplay";
 import { strainSymbolUrlString } from "../middleware/changeURL";
 import { combineMeasurementsControlsAndQuery, encodeMeasurementColorBy, loadMeasurements } from "./measurements";
 import { processStreams, labelStreamMembership, availableStreamLabelKeys } from "../util/treeStreams";
+import { parseJsonMetaBlock, convertColoringsListToDict } from "../util/metadataJsonParsing";
 
 export const doesColorByHaveConfidence = (controlsState, colorBy) =>
   controlsState.coloringsPresentOnTreeWithConfidence.has(colorBy);
@@ -226,7 +227,7 @@ const modifyStateViaURLQuery = (state, query) => {
   if (query.focus) {
     if (query.focus !== "selected") {
       console.error(`Invalid focus value of ${JSON.stringify(query.focus)}; removing focus.`);
-      delete query.focus; 
+      delete query.focus;
     } else if (state.showStreamTrees) {
       console.error(`Cannot use focus and streamtrees at the same time; removing focus.`);
       delete query.focus;
@@ -272,7 +273,12 @@ const restoreQueryableStateToDefaults = (state) => {
   state.scatterVariables = {};
 
   state.showAllBranchLabels = false;
-  // console.log("state now", state);
+
+  // default distanceMeasure is always num_date, so make sure the dataset supports it!
+  if (state.branchLengthsToDisplay === "divOnly") {
+    state.distanceMeasure = "div"
+  }
+
   return state;
 };
 
@@ -288,7 +294,6 @@ const modifyStateViaMetadata = (state, metadata, genomeMap) => {
      */
     state.filtersInFooter = [...metadata.filters];
   } else {
-    console.warn("JSON did not include any filters");
     state.filtersInFooter = [];
   }
   if (metadata.displayDefaults) {
@@ -804,107 +809,6 @@ const modifyTreeStateVisAndBranchThickness = (oldState, displayDefaults, query, 
   return newState;
 };
 
-/**
- * The v2 JSON spec defines colorings as a list, so that order is guaranteed.
- * Prior to this, we used a dict, where key insertion order is (guaranteed? essentially always?)
- * to be respected. By simply converting it back to a dict, all the auspice
- * code may continue to work. This should be attended to in the future.
- * @param {obj} coloringsList list of objects
- * @returns {obj} a dictionary representation, where the "key" property of each element
- * in the list has become a property of the object
- */
-const convertColoringsListToDict = (coloringsList) => {
-  const colorings = {};
-  coloringsList.forEach((coloring) => {
-    colorings[coloring.key] = { ...coloring };
-    delete colorings[coloring.key].key;
-  });
-  return colorings;
-};
-
-/**
- *
- * A lot of this is simply changing augur's snake_case to auspice's camelCase
- */
-const createMetadataStateFromJSON = (json) => {
-  const metadata = {};
-  if (json.meta.colorings) {
-    metadata.colorings = convertColoringsListToDict(json.meta.colorings);
-  }
-  metadata.title = json.meta.title;
-  metadata.updated = json.meta.updated;
-  if (json.meta.description) {
-    metadata.description = json.meta.description;
-  }
-  if (json.meta.warning) {
-    metadata.warning = json.meta.warning;
-  }
-  if (json.version) {
-    metadata.version = json.version;
-  }
-  if (json.meta.extensions?.original_version) {
-    metadata.originalVersion = json.meta.extensions.original_version;
-  }
-  if (json.meta.maintainers) {
-    metadata.maintainers = json.meta.maintainers;
-  }
-  if (json.meta.build_url) {
-    metadata.buildUrl = json.meta.build_url;
-  }
-  if (json.meta.build_avatar) {
-    metadata.buildAvatar = json.meta.build_avatar;
-  }
-  if (Array.isArray(json?.meta?.data_provenance)) {
-    metadata.dataProvenance = json.meta.data_provenance.filter((el) => typeof el.name === 'string')
-  }
-  if (json.meta.filters) {
-    metadata.filters = json.meta.filters;
-  }
-  if (json.meta.panels) {
-    metadata.panels = json.meta.panels;
-  }
-  if (json.meta.stream_labels) {
-    metadata.streamLabels = json.meta.stream_labels;
-  }
-  if (json.root_sequence) {
-    /* A dataset may set the root sequence inline (i.e. within the main dataset JSON), which
-    we capture here. Alternatively it may be a sidecar JSON file */
-    metadata.rootSequence = json.root_sequence;
-  }
-  if (json.meta.display_defaults) {
-    metadata.displayDefaults = {};
-    const jsonKeyToAuspiceKey = {
-      color_by: "colorBy",
-      geo_resolution: "geoResolution",
-      distance_measure: "distanceMeasure",
-      branch_label: "selectedBranchLabel",
-      tip_label: "tipLabelKey",
-      map_triplicate: "mapTriplicate",
-      layout: "layout",
-      language: "language",
-      sidebar: "sidebar",
-      panels: "panels",
-      stream_label: "streamLabel",
-      transmission_lines: "showTransmissionLines",
-      label: "label",
-    };
-    for (const [jsonKey, auspiceKey] of Object.entries(jsonKeyToAuspiceKey)) {
-      if (Object.prototype.hasOwnProperty.call(json.meta.display_defaults, jsonKey)) {
-        metadata.displayDefaults[auspiceKey] = json.meta.display_defaults[jsonKey];
-      }
-    }
-  }
-  if (json.meta.geo_resolutions) {
-    metadata.geoResolutions = json.meta.geo_resolutions;
-  }
-
-
-  if (Object.prototype.hasOwnProperty.call(metadata, "loaded")) {
-    console.error("Metadata JSON must not contain the key \"loaded\". Ignoring.");
-  }
-  metadata.loaded = true;
-  return metadata;
-};
 
 /**
  * Conceptually similar to `createMetadataStateFromJSON` but here looking at metadata from
@@ -971,10 +875,7 @@ export const createStateFromQueryOrJSONs = ({
   let tree, treeToo, entropy, controls, metadata, narrative, frequencies, measurements;
   /* first task is to create metadata, entropy, controls & tree partial state */
   if (json) {
-    /* create metadata state */
-    metadata = createMetadataStateFromJSON(json);
-    /* entropy state */
-    entropy = entropyCreateState(json.meta.genome_annotations);
+    ({ metadata, entropy } = parseJsonMetaBlock(json));
     /* ensure default frequencies state */
     frequencies = getDefaultFrequenciesState();
     /* Load measurements if available, otherwise ensure default measurements state */
@@ -1060,7 +961,7 @@ export const createStateFromQueryOrJSONs = ({
       }
     }
 
-    // Similar to the state changes applied for `ADD_EXTRA_METADATA`
+    // Similar logic to updating tree state via UPDATE_METADATA actions
     if (newColoringData !== undefined) {
       newMeasurementsColoringData = true;
       // Update controls
@@ -1160,7 +1061,10 @@ export const createStateFromQueryOrJSONs = ({
   /* calculate entropy in view */
   if (entropy.loaded) {
     /* The selected CDS + positions are only known if a genotype color-by has been set (display defaults | url) */
-    entropy.selectedCds = nucleotide_gene;
+    /* if the JSON is proteinOnly and we have a single gene (and CDS within that gene), default to viewing that gene */
+    entropy.selectedCds = (entropy.genomeMap[0].proteinOnly && entropy.genomeMap[0].genes.length === 1 && entropy.genomeMap[0].genes[0].cds.length === 1) ?
+      entropy.genomeMap[0].genes[0].cds[0] :
+      nucleotide_gene;
     entropy.selectedPositions = [];
     if (isColorByGenotype(controls.colorBy)) {
       const gt = decodeColorByGenotype(controls.colorBy);

@@ -2,7 +2,7 @@ import React from "react";
 import { connect } from "react-redux";
 import { withTranslation } from 'react-i18next';
 import { infoPanelStyles } from "../../globalStyles";
-import { getAcknowledgments} from "../framework/footer";
+import { FooterDescription } from "../framework/footer";
 import { datasetSummary } from "../info/datasetSummary";
 import { DownloadButtons } from "./downloadButtons";
 
@@ -39,16 +39,10 @@ export const publications = {
 };
 
 @connect((state) => ({
-  browserDimensions: state.browserDimensions.browserDimensions,
   colorBy: state.controls.colorBy,
-  distanceMeasure: state.controls.distanceMeasure,
   metadata: state.metadata,
-  entropy: state.entropy,
-  tree: state.tree,
   nodes: state.tree.nodes,
   visibility: state.tree.visibility,
-  panelsToDisplay: state.controls.panelsToDisplay,
-  panelLayout: state.controls.panelLayout
 }))
 class DownloadModalContents extends React.Component {
   getRelevantPublications() {
@@ -92,8 +86,7 @@ class DownloadModalContents extends React.Component {
         </div>
         <div style={infoPanelStyles.break}/>
         {" " + t("A full list of sequence authors is available via the TSV files below")}
-        <div style={infoPanelStyles.break}/>
-        {getAcknowledgments({}, {preamble: {fontWeight: 300}, acknowledgments: {fontWeight: 300}})}
+        <div style={infoPanelStyles.break} />
 
         <div style={infoPanelStyles.modalSubheading}>
           {t("Data usage policy")}
@@ -111,9 +104,18 @@ class DownloadModalContents extends React.Component {
         </div>
         <div style={{display: "block", justifyContent: "space-around", marginLeft: "25px", width: "100%" }}>
           <div style={{ width: "100%" }}>
-            <DownloadButtons {...this.props} relevantPublications={relevantPublications}/>
+            <DownloadButtons relevantPublications={relevantPublications}/>
           </div>
         </div>
+
+        {metadata.description && (
+          <>
+            <div style={infoPanelStyles.modalSubheading}>
+              {t("Dataset description")}:
+            </div>
+            <FooterDescription md={metadata.description} />
+          </>
+        )}
       </>
     );
   }
@@ -122,4 +124,3 @@ class DownloadModalContents extends React.Component {
 
 const WithTranslation = withTranslation()(DownloadModalContents);
 export default WithTranslation;
-

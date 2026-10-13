@@ -23,10 +23,9 @@ Please see the [project boards](https://github.com/orgs/nextstrain/projects) for
 
 This is useful for debugging, modifying the source code, or using an unpublished feature branch.
 
-You can install using your system `npm` or [within a Conda environment](https://docs.nextstrain.org/projects/auspice/en/stable/introduction/install.html#install-dependencies) to keep things isolated.
+The following steps assume you are using an environment with a suitable nodejs version such as a conda environment. Check the `engines` section of Auspice's [package.json](https://github.com/nextstrain/auspice/blob/master/package.json) for the currently supported nodejs versions.
 
 ```sh
-# grab the GitHub auspice repo
 git clone https://github.com/nextstrain/auspice.git
 cd auspice
 
@@ -37,7 +36,8 @@ npm ci
 npm install --global .
 ```
 
-Updating Auspice should only require pulling the new version from GitHub - it shouldn't require any `npm` commands. You will, however, have to re-build Auspice whenever the client-related code has changed, via `auspice build`.
+When you update Auspice (e.g. via source code modifications or `git pull`) you may need to (i) update dependencies via `npm ci` and (ii) rebuild the client bundles via `auspice build` / `npm run build`.
+
 
 ## Contributing code
 
@@ -48,69 +48,11 @@ Where possible, **please rebase** your work onto master rather than merging chan
 
 From a fork: `git pull --rebase upstream master`
 
-### Make sure tests are passing
-
-We use the following libraries for all kinds of testing, so it'd help to read the docs to get familiar with their APIs and features:
-
-1. [`Jest`](https://github.com/facebook/jest)
-2. [`Playwright`](https://playwright.dev)
-
-When you submit a pull request to the auspice repository, certain tests will need to pass before it can be merged.
-
-You will likely want to run these tests locally before submitting:
-
-First, install the dependencies with `npm i`, then:
-
-#### For unit tests
-
-Run `npm test`.
-
-#### For linting
-
-Run `npm run lint`. If there are issues run `npm run lint:fix`.
-
-#### For integration tests
-
-Auspice used to have integration testing using jest + puppeteer, however this was removed in [PR 1672](https://github.com/nextstrain/auspice/pull/1672).
-Ideally this functionality will be brought back, and that PR would be a good place to start.
-If embarking on this journey, consider using Playwright since it is already used for smoke tests.
-
-#### For smoke tests
-
-1. Fetch the datasets with `npm run get-data`.
-2. Install the testing browser with `npx playwright install chromium`.
-3. Run `npm run smoke-test`.
-
-
-#### Test Tips
-
-1. Run a single `describe()`, `it()`, or `test()` **within a file**, add `.only()`:
-
-    E.g., `describe.only()`, `it.only()`, or `test.only()`
-
-2. You can run a single test file like so:
-
-    E.g., `npx jest test/dates.test.js`
-
-
-
-#### Manual testing
-
-A Heroku pipeline for this repository is connected to GitHub under the nextstrain-bot user account. The Review Apps feature facilitates manual review of changes by automatically creating a test instance from the PR source branch and adding a link to it on the GitHub PR page. These apps are based on configuration in [app.json](./app.json).
-
-#### Test on downstream repositories
-
-Additionally, a GitHub Actions workflow has been set up to generate PRs in downstream repositories that reflect the new changes in Auspice. To use it, add the label [preview on auspice.us](https://github.com/nextstrain/auspice/labels/preview%20on%20auspice.us) and/or [preview on nextstrain.org](https://github.com/nextstrain/auspice/labels/preview%20on%20nextstrain.org).
-
-## git-lfs
-
-[Git Large File Storage](https://github.com/git-lfs/git-lfs) was removed in [PR 1672](https://github.com/nextstrain/auspice/pull/1672).
-You may uninstall it via `git lfs uninstall` if needed.
-
 
 ## Typescript
 
 Auspice is in the process of moving to typescript, and currently supports both `.js(x)` and `.ts(x)` files.
+New code should ideally be written in TS.
 [This guide](https://www.typescriptlang.org/docs/handbook/migrating-from-javascript.html) is helpful to understand the bigger picture of migrating a JS project to TS. 
 Typescript is supposed to help us, so there's no problem using `any` types as we move code from JS to TS, however new code would ideally be typed.
 
@@ -123,6 +65,135 @@ The various moving parts involved are:
 * `typescript` (`tsc` command) is used by `npm run type-check` as well as other plugins/libraries
 * `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser` allow ESLint to parse TypeScript syntax
 * `@babel/preset-typescript` is used by babel-loader (via webpack) to parse `.ts(x)` files
+
+
+## The CLI is transpiled for publishing
+
+The CLI (`auspice ...`) is written in TypeScript under `cli/`, and when Auspice is installed from source then `auspice.js` loads `cli/index.ts` and Node (24+) strips the types on the fly.
+
+That doesn't work once the package is installed as Node refuses to strip types for any file under a `node_modules/` path (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`).
+We therefore transpile the `cli/*` TS code to `cli-build/*` JS files via `npm run build:cli`. 
+This happens at publish time (via [npm's prepare life-cycle script](https://docs.npmjs.com/cli/v8/using-npm/scripts#life-cycle-scripts)), so the published package ships `cli-build/`, a plain-JavaScript transpilation of `cli/`, and omits `cli/` entirely (via `.npmignore`).
+This has two consequences:
+ - Installing from git with `--ignore-scripts` skips `prepare` and leaves you with an unusable CLI
+ - `webpack.config.cjs` and `babel.config.cjs` must not import from `cli/`, as that directory won't exist
+
+Because `cli-build/` mirrors `cli/` 1:1 we can use relative filepaths such as `../webpack.config.cjs`, `../package.json`.
+The `.ts` import specifiers are rewritten to `.js` on the way out by TypeScript's  `rewriteRelativeImportExtensions`.
+The two entry points, `auspice.js` (the CLI) and `index.js` (what's available for other projects to import in JS/TS code) both go through `cli-entry.js`, which picks between the two directories: 
+
+  - `cli/` present ⇒ source checkout ⇒ run the `.ts`
+  - `cli/` absent ⇒ installed package ⇒ run `cli-build/`
+
+Note that type errors do not fail `build:cli` — `tsc` emits regardless. `npm run type-check` remains the gate, and it type-checks `cli/` via `cli/tsconfig.json`.
+
+
+### Running the transpiled CLI from a source install
+
+Set `AUSPICE_CLI=build` to run `cli-build/` from a source checkout, i.e. what consumers of the
+published package will run:
+
+```sh
+npm run build:cli   # or leave `npm run build:cli:watch` going
+AUSPICE_CLI=build node auspice.js view --verbose test/data
+```
+(`AUSPICE_CLI=source` forces the TypeScript sources)
+
+### Custom handler files can be TypeScript
+
+The `--handlers` file passed to `auspice view` / `auspice develop` lives in the user's own project, not under `node_modules`, so Node type-strips it normally and `.ts`/`.mts` handlers work.
+See [the server API docs](./docs/server/api.rst) for more details.
+
+
+## Tests
+
+Auspice has various tests in place, although test coverage is sporadic.
+When you submit a pull request to the auspice repository, certain tests will need to pass before it can be merged.
+These tests can be run locally:
+
+#### Unit tests
+
+Unit tests use [`Jest`](https://github.com/facebook/jest) and can be run via `npm test`.
+These tests rely on datasets which need to be fetched ahead of time via `npm run fetch-test-data`.
+
+General advice for writing tests:
+
+1. Run a single `describe()`, `it()`, or `test()` **within a file**, add `.only()`:
+
+    E.g., `describe.only()`, `it.only()`, or `test.only()`
+
+2. You can run a single test file like so:
+
+    E.g., `npx jest test/dates.test.js`
+
+
+#### Smoke tests
+
+> Smoke tests are currently very limited but we may expand these in the future
+
+1. Fetch testing datasets with `npm run fetch-test-data`.
+2. Install the testing browser with `npx playwright install chromium`.
+3. Run `npm run smoke-test`.
+
+#### Packaged CLI test
+
+`npm run test:package` packs the package and installs it into a throwaway project, then runs the CLI from `node_modules`.
+This aims to catch breakage of the `cli-build/` approach (transpiled CLI code).
+
+
+#### For integration tests
+
+Auspice used to have integration testing using jest + puppeteer, however this was removed in [PR 1672](https://github.com/nextstrain/auspice/pull/1672).
+Ideally this functionality will be brought back, and that PR would be a good place to start.
+If embarking on this journey, consider using Playwright since it is already used for smoke tests.
+
+
+## Linting & type-checking
+
+Linting via eslint: `npm run lint`, typechecking via `npm type-check`
+
+
+## Offline use
+
+Auspice can register a [service worker](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API) for use without a network connection.
+This is opt-in and primarily intended for [auspice.us](https://auspice.us); it is enabled by setting the environment variable `AUSPICE_ENABLE_SERVICE_WORKER=true` at build time.
+It is **disabled by default** and is **always disabled in dev mode** (a caching service worker would interfere with hot-reloading).
+
+When enabled, the service worker is registered at the site root with a scope of the whole origin.
+
+What it intercepts:
+
+* The build's static assets – `index.html` and referenced JS/CSS bundles.
+* [Navigation requests](https://web.dev/articles/handling-navigation-requests) to the root path `/`.
+
+What it does **not** intercept:
+
+* **Charon API requests**
+* **Map tiles**
+
+These are runtime `fetch()` requests with no caching configured, so they always go to the network and will fail when offline.
+
+### Removing a registered service worker
+
+There are two options for removal:
+
+1. Automatic – the easiest option for configurable origins (e.g. `localhost:4000`).
+
+    Instructions: rebuild without `AUSPICE_ENABLE_SERVICE_WORKER`, serve the build **at the same origin**, and open a page. The service worker will be unregistered and Workbox caches removed. The service worker will be fully removed when all pages at the origin have been closed.
+
+2. Manual – useful for ephemeral review apps (e.g. `*.herokuapp.com`).
+
+    Instructions: find and remove the service worker and Workbox caches in browser developer tools. For Chromium-based browsers, this is typically under the "Application" tab > "Service workers" and "Cache storage".
+
+#### Test on downstream repositories
+
+A GitHub Actions workflow has been set up to generate PRs in downstream repositories that reflect the new changes in Auspice. To use it, add the label [preview on auspice.us](https://github.com/nextstrain/auspice/labels/preview%20on%20auspice.us) and/or [preview on nextstrain.org](https://github.com/nextstrain/auspice/labels/preview%20on%20nextstrain.org).
+
+## git-lfs
+
+[Git Large File Storage](https://github.com/git-lfs/git-lfs) was removed in [PR 1672](https://github.com/nextstrain/auspice/pull/1672).
+You may uninstall it via `git lfs uninstall` if needed.
+
 
 ## Contributing to Documentation
 
@@ -194,20 +265,83 @@ If a translation of a particular string is not yet available, then auspice will 
 
 ## Releases & versioning
 
-Releasing Auspice requires a few manual steps as there are so many downstream targets which are each to be updated with the new version.
+Releases are made by the [release GitHub Actions workflow](https://github.com/nextstrain/auspice/actions/workflows/release.yaml), which bumps the version, tags it, publishes to npm and creates a GitHub release.
+The workflow will also trigger nextstrain/docker-base to update.
+Other downstream targets (e.g. nextstrain.org, auspice.us, bioconda, conda-base) require additional steps; see below.
+
+> The release workflow has a number of safeguards to prevent mistakes, see `test/compute-release-version.test.js` for full details.
+  These include asserting that a normal release only comes from the `master` branch, and a prerelease only comes from a non-`master` branch. 
+
+
+
+### Making a normal release
 
 1. Compare the git history against the previous release (e.g. [view master vs release branch on GitHub](https://github.com/nextstrain/auspice/compare/release...master)) and ensure all changes are reflected in `CHANGELOG.md`.
    If new entries are needed, commit these and push them to the remote (GitHub).
-1. Ensure you are on the master branch and up to date with the remote, have `node` and `npm` in your environment, and are logged into the GitHub CLI (`gh auth status`).
-1. Run the `./releaseNewVersion.sh` script.
-    This will prompt you for the version number increase and push changes to both the master and release branches.
-    * Auspice's [CI Action](https://github.com/nextstrain/auspice/actions/workflows/ci.yaml) will publish the new version to npm. 
-    It takes some time for the new version to appear in the npm registry.
+   Put them at the top of the file, directly below the `# Changelog` heading; the workflow will add the version heading above them.
+1. Go to the [release workflow](https://github.com/nextstrain/auspice/actions/workflows/release.yaml) and click "Run workflow". Then:
+    * Leave **"Use workflow from"** set to `master`. This selects the branch being released, and Auspice's normal releases always come from the code present on `master`.
+    * **bump** the version as necessary:
+      * If the current version is a normal release, then use a `major` bump (e.g. 2.73.0 → 3.0.0), `feat` for a feature release (→ 2.74.0), or `minor` for a fix (→ 2.73.1).
+      * If the current version is a prerelease (see below), then set bump to `promote` to ship the current prerelease as stable (e.g. `3.0.0-alpha.2` → `3.0.0`).
+    * Leave **label** as `none` — a labelled release is a prerelease, which `master` doesn't make (see below).
+    * Optionally tick **dry run** first: everything is computed and validated, and the npm tarball is built, but nothing is pushed or published.
+1. The workflow then, in order:
+    * validates the request via `scripts/compute-release-version.js`
+    * bumps `package.json` and `package-lock.json` (the single source of truth for the version, which `src/version.js` and `cli/version.ts` both read), prepends the `## version X.Y.Z - YYYY/MM/DD` heading to `CHANGELOG.md`, commits, and pushes to `master`;
+    * pushes the annotated git tag `vX.Y.Z`, and fast-forwards the `release` branch to match `master`;
+    * publishes to npm under the `latest` [dist-tag](https://docs.npmjs.com/adding-dist-tags-to-packages)
+    * creates an entry on [github.com/nextstrain/auspice/releases](https://github.com/nextstrain/auspice/releases/) using the notes from the changelog section it just added;
+    * triggers a rebuild of `nextstrain/docker-base`.
+1. Check the results:
+    * It takes some time for the new version to appear in the npm registry.
     To check if it has been released run `npm view auspice versions --json | tail`; you may wish to wait for the email to the slack channel `#nextstrain-admin` but it's unclear if there is still a lag after the email arrives before it's available to `npm` APIs.
-    None of the following numbered steps will work until the new version is available on npm. 
-    * The release script will automatically create an entry on [github.com/nextstrain/auspice/releases](https://github.com/nextstrain/auspice/releases/) containing information from the changelog.
-    * Ensure the [docker-base CI action triggered by nextstrain-bot](https://github.com/nextstrain/docker-base/actions/workflows/ci.yml?query=branch%3Amaster+actor%3Anextstrain-bot) runs successfully.
-    (This action in nextstrain/docker-base is triggered by Auspice's CI action and installs Auspice from the release branch such that it's not dependant on availability in npm.)
+    None of the "Updating downstream targets" steps will work until the new version is available on npm. 
+    * Ensure the [docker-base CI workflow triggered by nextstrain-bot](https://github.com/nextstrain/docker-base/actions/workflows/ci.yml?query=branch%3Amaster+actor%3Anextstrain-bot) runs successfully.
+    (This workflow in nextstrain/docker-base is triggered by the release workflow and installs Auspice from the release branch such that it's not dependant on availability in npm.)
+
+Note that the version-bump commit does not itself get a CI run, because pushes made with the default `GITHUB_TOKEN` don't trigger other workflows.
+The workflow instead requires CI to have passed on the commit being released, i.e. the one before the version bump.
+
+### Making a prerelease
+
+Prereleases come from any branch **other than** `master` — in practice a long-lived development branch such as `v3`.
+They're published to npm under the `next` dist-tag, so `npm install auspice` continues to get the newest normal release and `npm install auspice@next` gets the prerelease.
+They don't touch `CHANGELOG.md` or the `release` branch, and don't rebuild docker-base.
+
+Dispatch the same workflow, but set **"Use workflow from"** to the branch you're releasing, and:
+
+* To **start** a series, set **bump** to `major`/`feat`/`minor` and **label** to `alpha`/`beta`/`rc`.
+  E.g. from 2.73.0, `major` + `alpha` gives `3.0.0-alpha.0`.
+* To **continue** a series, set **bump** to `continue` and keep the same **label**. E.g.  `3.0.0-alpha.0` → `3.0.0-alpha.1` → …
+* To **move to a later label**, set **bump** to `continue` and change **label**. E.g. `3.0.0-alpha.1` + `beta` → `3.0.0-beta.0`.
+
+No entry is created on [GitHub's releases page](https://github.com/nextstrain/auspice/releases/), however the git tag `vX.Y.Z-label.n` is pushed as usual.
+
+> Note: `release.yaml` is read from the branch being released, not from `master`.
+> The workflow warns in its job summary when its own files differ from `master`'s.
+
+
+### If a release fails partway through
+
+The commit, tag and `release` branch are pushed *before* npm publish and the GitHub release.
+So a failure in `publish-npm` or later leaves the repo already updated. Usually the right move is to fix the cause and **re-run the failed jobs** from the Actions UI.
+
+To unwind instead:
+
+```sh
+git push --delete origin v$VERSION      # remove the git tag
+git revert $BUMP_COMMIT && git push origin master
+```
+
+An npm version which was published can't be unpublished — release a new version instead.
+If a bad version reached the `latest` dist-tag, move it back with `npm dist-tag add auspice@$GOOD_VERSION latest`.
+
+### Updating downstream targets
+
+These steps follow a normal release, and are still manual as there are so many downstream targets which are each to be updated with the new version.
+None of them apply to prereleases, which deliberately don't move the `latest` dist-tag.
+
 1. Updates to nextstrain sites which depend on Auspice:
     1. Nextstrain.org will check daily for a new version of Auspice and [automatically merge the resulting PR](https://github.com/nextstrain/nextstrain.org/blob/175171e0e1c1b331538729a1168598227d08698d/.github/workflows/dependabot-automation.yml), which results in [the canary site](https://next.nextstrain.org) being updated.
         * You can [trigger this check](https://github.com/nextstrain/nextstrain.org/blob/175171e0e1c1b331538729a1168598227d08698d/.github/dependabot.yml#L16-L17) as soon as the new version is available on npm if you wish.
@@ -229,3 +363,31 @@ Releasing Auspice requires a few manual steps as there are so many downstream ta
             ```
     3. Click through to create a Pull Request to the Bioconda GitHub repository.
 1. When the new version of Auspice is available on Bioconda, manually run the [conda-base CI workflow](https://github.com/nextstrain/conda-base/actions/workflows/ci.yaml) on the `main` branch.
+
+---
+
+## Maps
+
+Auspice renders phylogeographic data on an interactive world map. The map displays demes (coloured circles representing geographic locations) and transmission lines connecting them, overlaid on a tiled basemap.
+
+### Libraries
+
+- [Leaflet](https://leafletjs.com/) — provides the interactive map container, pan/zoom controls, event handling, and the coordinate system for overlays.
+- [MapLibre GL JS](https://maplibre.org/) — renders Vector Tiles (MVT/PBF format) client-side using WebGL. Vector tiles are smaller and sharper than raster tiles at all zoom levels.
+- [@maplibre/maplibre-gl-leaflet](https://github.com/maplibre/maplibre-gl-leaflet) — bridges MapLibre GL into Leaflet as a tile layer, allowing the existing Leaflet infrastructure (events, controls, D3 overlays) to remain unchanged.
+- [D3](https://d3js.org/) — renders demes and transmission lines as SVG overlays on top of the Leaflet map.
+
+### Maps and map tile server(s)
+
+**MapLibre GL JS** is used as the rendering engine in Auspice, using webworkers to render vector tiles into a canvas.
+We interact with this via `maplibre-gl-leaflet` so the canvas layer is within Leaflet as that is how we overlay our d3 elements on the map.
+
+A **MapLibre Style Spec JSON** describes layers, paint properties, and references (URLs) to vector tiles, sprites, glyphs etc. to fetch for map rendering.
+Auspice uses [a customised style JSON](https://github.com/nextstrain/auspice/blob/master/src/util/map-styles.json) originally based on [OpenMapTiles' positron theme](https://github.com/openmaptiles/positron-gl-style).
+The underlying resources (tiles, sprites etc) are currently fetched from OpenMapTiles, as defined in the styles JSON.
+You can use a built-time extension to use a different style sheet; see [test/example-customisations/openfreemap/](https://github.com/nextstrain/auspice/tree/master/test/example-customisations/openfreemap/).
+
+> Auspice v2 used **Mapbox** as our tile provider via a customised MapBox style sheet.
+  Auspice v3 can no longer use Mapbox stylesheets (as MapLibre doesn't understand the proprietary `mapbox://` protocol), however there is a helper script [transform-mapbox-style-json.js](https://github.com/nextstrain/auspice/blob/master/scripts/transform-mapbox-style-json.js) which transforms the JSON to rewrite each `mapbox://` URL to its HTTPS equivalent, thus producing a MapLibre-compatible style sheet which can be used as via build-time extensions.
+  For the time being, this map style is still available via [test/example-customisations/mapbox/](https://github.com/nextstrain/auspice/tree/master/test/example-customisations/mapbox/).
+  Our current (Auspice v3) stylesheet was chosen to match the aesthetics of the Mapbox stylesheet used in Auspice v2.

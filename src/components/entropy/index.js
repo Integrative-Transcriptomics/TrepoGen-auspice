@@ -142,7 +142,8 @@ class Entropy extends React.Component {
 
   resetLayout(styles) {
     if (this.props.narrativeMode || !this.state.chart) return null;
-    const viewingGenome = this.props.selectedCds===nucleotide_gene;
+    const viewingGenome = this.props.selectedCds === nucleotide_gene;
+    const dontShowNuc = this.props.genomeMap[0].proteinOnly && this.props.genomeMap[0].genes.length === 1;
     /**
      * The intention for this button is to be inactive when viewing the genome &
      * fully zoomed out, however zoom actions do not trigger redux state changes
@@ -156,7 +157,7 @@ class Entropy extends React.Component {
           key={1}
           style={tabGroupMember}
           onClick={() => {
-            if (viewingGenome) {
+            if (viewingGenome || dontShowNuc) {
               this.state.chart.update({
                 zoomMin: this.state.chart.zoomBounds[0],
                 zoomMax: this.state.chart.zoomBounds[1],
@@ -241,7 +242,7 @@ class Entropy extends React.Component {
   }
   componentDidMount() {
     if (this.props.loaded) {
-      this.setUp(this.props); 
+      this.setUp(this.props);
       const observer = new IntersectionObserver(this.visibilityOnScreenChange.bind(this), {threshold: 0.0});
       observer.observe(this.d3entropy)
     }
