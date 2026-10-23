@@ -1,10 +1,33 @@
 # Changelog
 
+## version 3.1.0 - 2026/10/15
+
+
+* The map legend now shows the number of (visible) tips for different deme (circle) sizes.
+[#2096](https://github.com/nextstrain/auspice/pull/2096)
+* Hovering over demes (circles or arcs) on the map panel shows a hover box with the deme's tip count and (where applicable) the number of tips in the hovered arc.
+[#2096](https://github.com/nextstrain/auspice/pull/2096)
+* Legends can now be single columns (when space allows), and overflowing legends are now scrollable.
+[#2096](https://github.com/nextstrain/auspice/pull/2096)
+
+* SVG download (via "download data" in the footer) has had a major re-write fixing a number of bugs.
+  These include multiple bugs regarding missing map tiles, incorrect panel layout, missing legends, incorrect fonts.
+  Vector editing programs (Inkscape, Illustrator etc) should also handle these new SVGs better.
+  [#2103](https://github.com/nextstrain/auspice/pull/2103)
+
+* Bugfix: the tree and entropy panels now remove their drawings when they unmount, and the entropy panel stops observing its visibility.
+  A later mount on the same DOM, as in React StrictMode, no longer draws over the old drawing.
+ [#2100](https://github.com/nextstrain/auspice/pull/2100)
+
+* Bugfix: a temporal axis narrower than the minimum grid spacing no longer freezes the browser.
+  This could happen in the tree and frequencies panels with small windows, the grid layout, or long tip labels.
+  [#2098](https://github.com/nextstrain/auspice/pull/2098)
+
+* Bugfix: the space reserved for tip labels now correctly fits the longest label in view.
+  This updates according to the chosen tip label key.
+  [#2099](https://github.com/nextstrain/auspice/pull/2099)
+
 ## version 3.0.0 - 2026/09/02
-
-
-
-
 
 > Auspice v3 is our first major release in almost 7 years (despite 73 feature releases!) which reflects our focus on keeping the interface for consuming projects as stable as possible.
   A decision to render the map using vector tiles necessitated a major version bump as custom Auspice builds which configure the map will need to change.

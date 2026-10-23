@@ -10,23 +10,24 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import '@maplibre/maplibre-gl-leaflet';
 import _min from "lodash/min";
 import _max from "lodash/max";
-import domtoimage from "dom-to-image";
 import { select } from "d3-selection";
 import 'd3-transition';
 import Card from "../framework/card";
-import { drawDemesAndTransmissions, updateOnMoveEnd, updateVisibility } from "./mapHelpers";
+import { setupDemeRadius, drawDemesAndTransmissions, updateOnMoveEnd, updateVisibility } from "./mapHelpers";
 import {
   createDemeAndTransmissionData,
   updateDemeAndTransmissionDataColAndVis,
   updateTransmissionDataLatLong,
   updateDemeDataLatLong
 } from "./mapHelpersLatLong";
-// import { incommingMapPNG } from "../download/helperFunctions";
+import { htmlToSvg } from "../download/domToSvg";
 import { timerStart, timerEnd } from "../../util/perf";
-import { tabSingle, darkGrey, lightGrey } from "../../globalStyles";
+import { tabSingle, darkGrey, lightGrey, infoPanelStyles } from "../../globalStyles";
 import ErrorBoundary from "../../util/errorBoundary";
 import { getMapTilesSettings } from "../../util/globals";
-import Legend from "../tree/legend/legend";
+import Legend from "../legend/legend";
+import HoverPanel from "../hoverPanel/hoverPanel";
+import { InfoLine } from "../tree/infoPanels/hover";
 import "../../css/mapbox.css"; // controls the rendering of the mapbox logo (optional; toggled on via customisations)
 
 /* global L */
@@ -81,10 +82,25 @@ class Map extends React.Component {
       demeIndices: null,
       transmissionIndices: null,
       userHasInteractedWithMap: false,
-      tilesSettings: getMapTilesSettings()
+      tilesSettings: getMapTilesSettings(),
+      hoverData: null // data for the <HoverPanel>, or null when nothing hovered
     };
     // https://github.com/yannickcr/eslint-plugin-react/blob/master/docs/rules/jsx-no-bind.md#es6-classes
     this.fitMapBoundsToData = this.fitMapBoundsToData.bind(this);
+    this.handleHover = this.handleHover.bind(this);
+  }
+
+  /**
+   * Called by the d3 mouseover/mouseout handlers on an individual deme's arc or circle.
+   * Used to set or clear the data driving the <HoverPanel>.
+   */
+  handleHover(hoverInfo) {
+    if (!hoverInfo) {
+      this.setState({hoverData: null});
+      return;
+    }
+    const {demeName, demeCount, arcName, arcCount, x, y} = hoverInfo;
+    this.setState({hoverData: {demeName, demeCount, arcName, arcCount, mouseX: x, mouseY: y}});
   }
 
   UNSAFE_componentWillMount() {
@@ -92,25 +108,34 @@ class Map extends React.Component {
       leaflet(); /* this sets up window.L */
     }
     if (!window.L.getMapSvg) {
-      /* Get the map tiles */
+      /* Convert the on-screen map into SVG markup for the "download SVG" feature. We read the
+       * live map container back via the shared htmlToSvg() converter rather than re-implementing
+       * its layout: the WebGL basemap <canvas> is rasterised to a PNG <image> (hence the
+       * preserveDrawingBuffer flag on the GL layer), and the d3 demes/transmissions overlay —
+       * already an <svg> — is inlined as native vector. Document order gives the right z-order
+       * (basemap tiles below, demes above). The zoom controls are on-screen chrome, so skip them. */
       window.L.getMapSvg = (loadendCallback) => {
-        const mapDimensions = this.state.map.getSize();
-        const panOffsets = this.state.map._getMapPanePos();
-        domtoimage.toSvg(this.state.map.getContainer(),
-          {
-            width: mapDimensions.x,
-            height: mapDimensions.y,
-            filter: (node) => {
-              return node.className !== "leaflet-control-container";
-            }
-          })
-          .then((image) => {
-            loadendCallback({
-              mapSvg: image.replace('data:image/svg+xml;charset=utf-8,', ''),
-              mapDimensions: mapDimensions,
-              panOffsets: panOffsets
-            });
+        const emit = () => {
+          const {width, height, markup} = htmlToSvg(this.state.map.getContainer(), {
+            skip: (el) => el.classList && el.classList.contains("leaflet-control-container")
           });
+          loadendCallback({mapSvg: markup, mapDimensions: {x: width, y: height}});
+        };
+        /* MapLibre renders lazily into the (preserved) WebGL buffer, so reading the basemap
+         * canvas back at an arbitrary moment can catch an incomplete, background-only frame
+         * (the grey map we used to get). Force a fresh paint and read inside the next render,
+         * with a timeout fallback so a download always completes. */
+        const glMap = this.glLayer && this.glLayer.getMaplibreMap();
+        if (glMap) {
+          let captured = false;
+          const capture = () => { if (captured) return; captured = true; emit(); };
+          glMap.once("render", capture);
+          glMap.triggerRepaint();
+          window.setTimeout(capture, 1000);
+        } else {
+          console.warn("[SVG export] MapLibre GL map unavailable; the basemap may be blank");
+          emit();
+        }
       };
     }
   }
@@ -212,7 +237,7 @@ class Map extends React.Component {
       timerStart("drawDemesAndTransmissions");
       /* data structures to feed to d3 latLongs = { tips: [{}, {}], transmissions: [{}, {}] } */
 
-      const {demeData, transmissionData, demeIndices, transmissionIndices} = createDemeAndTransmissionData(
+      const {demeData, transmissionData, demeIndices, transmissionIndices, maxDemeCount} = createDemeAndTransmissionData(
         this.props.nodes,
         this.props.visibility,
         this.props.geoResolution,
@@ -236,18 +261,20 @@ class Map extends React.Component {
       });
 
       // const latLongs = this.latLongs(demeData, transmissionData); /* no reference stored, we recompute this for now rather than updating in place */
+
+      const demeRadiusFn = setupDemeRadius(this.props.nodes)
+      
       const d3elems = drawDemesAndTransmissions(
         demeData,
+        demeRadiusFn,
         transmissionData,
         this.state.d3DOMNode,
-        this.state.map,
-        this.props.nodes,
         this.props.dateMinNumeric,
         this.props.dateMaxNumeric,
         this.props.pieChart,
         this.props.geoResolution,
         this.props.dispatch,
-        this.props.showTransmissionLines,
+        this.handleHover,
       );
 
       // don't redraw on every rerender - need to separately handle virus change redraw
@@ -255,6 +282,8 @@ class Map extends React.Component {
         boundsSet: true,
         d3elems,
         demeData,
+        maxDemeCount,
+        demeRadiusFn,
         transmissionData,
         demeIndices,
         transmissionIndices
@@ -374,11 +403,14 @@ class Map extends React.Component {
     if (!(visibilityChange && haveData)) { return; }
 
     timerStart("updateDemesAndTransmissions");
+
+    const demeRadiusFn = setupDemeRadius(nextProps.nodes)
+    
     if (this.props.geoResolution !== nextProps.geoResolution) {
       /* This `if` statement added as part of https://github.com/nextstrain/auspice/issues/722
        * and should be a prime candidate for refactoring in https://github.com/nextstrain/auspice/issues/735
        */
-      const {demeData, transmissionData, demeIndices, transmissionIndices} = createDemeAndTransmissionData(
+      const {demeData, transmissionData, demeIndices, transmissionIndices, maxDemeCount} = createDemeAndTransmissionData(
         nextProps.nodes,
         nextProps.visibility,
         nextProps.geoResolution,
@@ -394,29 +426,31 @@ class Map extends React.Component {
       );
       const d3elems = drawDemesAndTransmissions(
         demeData,
+        demeRadiusFn,
         transmissionData,
         this.state.d3DOMNode,
-        this.state.map,
-        nextProps.nodes,
         nextProps.dateMinNumeric,
         nextProps.dateMaxNumeric,
         nextProps.pieChart,
         nextProps.geoResolution,
-        nextProps.dispatch
+        nextProps.dispatch,
+        this.handleHover
       );
       this.setState({
         d3elems,
         demeData,
+        maxDemeCount,
         transmissionData,
         demeIndices,
         transmissionIndices
       });
     } else {
-      const { newDemes, newTransmissions } = updateDemeAndTransmissionDataColAndVis(
+      const { newDemes, newTransmissions, maxDemeCount } = updateDemeAndTransmissionDataColAndVis(
         this.state.demeData,
         this.state.transmissionData,
         this.state.demeIndices,
         this.state.transmissionIndices,
+        this.state.maxDemeCount,
         nextProps.nodes,
         nextProps.visibility,
         nextProps.geoResolution,
@@ -426,16 +460,15 @@ class Map extends React.Component {
         nextProps.legendValues
       );
       updateVisibility(
-        /* updated in the function above */
+        /* values just updated in earlier function calls */
         newDemes,
+        demeRadiusFn,
         newTransmissions,
         /* we already have all this */
         this.state.d3elems,
-        this.state.map,
-        nextProps.nodes,
         nextProps.dateMinNumeric,
         nextProps.dateMaxNumeric,
-        nextProps.pieChart
+        nextProps.pieChart,
       );
 
       this.moveMapAccordingToData({
@@ -447,6 +480,8 @@ class Map extends React.Component {
 
       this.setState({
         demeData: newDemes,
+        maxDemeCount,
+        demeRadiusFn,
         transmissionData: newTransmissions
       });
     }
@@ -506,6 +541,10 @@ class Map extends React.Component {
 
     const token = this.state.tilesSettings.accessToken;
     const glLayer = L.maplibreGL({
+      // Keep the WebGL drawing buffer readable so the "download SVG" feature can rasterise the
+      // basemap via canvas.toDataURL(); without this the read-back is blank. The map is
+      // essentially static, so the cost of forgoing the buffer-swap optimisation is negligible.
+      preserveDrawingBuffer: true,
       style: this.state.tilesSettings.style,
       // Provider-agnostic request rewriting. Any provider-proprietary URLs (e.g. Mapbox's
       // mapbox:// protocol) are expected to already be resolved within the style document;
@@ -550,6 +589,9 @@ class Map extends React.Component {
       (new Wordmark({position: 'bottomleft'})).addTo(map);
     }
 
+    /* keep a handle on the GL layer so the SVG export can reach MapLibre's map/canvas */
+    this.glLayer = glLayer;
+
     /* Set up leaflet events */
     map.on("moveend", this.respondToLeafletEvent.bind(this));
     map.on("resize", () => {
@@ -574,6 +616,17 @@ class Map extends React.Component {
               width: this.state.responsive.width
             }}
           />
+          {this.state.hoverData &&
+            <HoverPanel mouseX={this.state.hoverData.mouseX} mouseY={this.state.hoverData.mouseY} containerId="map">
+              <div style={infoPanelStyles.tooltipHeading}>
+                {this.state.hoverData.demeName}
+              </div>
+              <InfoLine name="Number of tips:" value={this.state.hoverData.demeCount}/>
+              {this.state.hoverData.arcName !== undefined &&
+                <InfoLine name={`${this.state.hoverData.arcName}:`} value={this.state.hoverData.arcCount}/>
+              }
+            </HoverPanel>
+          }
         </div>
       );
     }
@@ -656,8 +709,15 @@ class Map extends React.Component {
     // clear layers - store all markers in map state https://github.com/Leaflet/Leaflet/issues/3238#issuecomment-77061011
     return (
       <Card center infocard={this.props.showOnlyPanels} title={transmissionsExist ? t("Transmissions") : t("Geography")}>
-        {this.props.legend && <ErrorBoundary>
-          <Legend legendPlacement={this.props.metadata.legendPlacements.map} width={this.props.width} />
+        {this.props.legend && this.state.demeRadiusFn && <ErrorBoundary>
+          <Legend
+            legendPlacement={this.props.metadata.legendPlacements.map}
+            width={this.props.width}
+            height={this.props.height}
+            sections={{...this.props.legend}}
+            maxDemeCount={this.state.maxDemeCount}
+            demeRadiusFn={this.state.demeRadiusFn}
+          />
         </ErrorBoundary>}
         {this.maybeCreateMapDiv()}
         {this.props.narrativeMode ? null : (
