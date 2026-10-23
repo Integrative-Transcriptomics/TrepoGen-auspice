@@ -1,4 +1,5 @@
 {
+	"navbarComponent": "navbar.js",
 	"sidebarTheme": {
 		"background": "#F0F2F7",
 		"alternateBackground": "#ACB7C9",
@@ -12,7 +13,7 @@
 		"style": "https://tiles.openfreemap.org/styles/positron",
 		"attribution": "© <a href=\"https://openfreemap.org\">OpenFreeMap</a> © <a href=\"http://www.openstreetmap.org/copyright\">OpenStreetMap</a>"
 	},
-	"browserTitle": "Global Phylogenomics of Treponema pallidum - Nextstrain",
+	"browserTitle": "Global Phylogenomics of Treponema pallidum",
 	"finePrint": "*Project collaborators:* Simon Hackl, Jeffrey Furlong, Nicole Lieberman, Alexander Greninger, Kay Nieselt, Nicholas Thomson, Mathew Beale, Steven Marshall, Aleksander Palkowski, Javier Alfaro, Caroline Cameron, Simon Houston, Avani Bhangav, Tara B. Reid",
 	"serverAddress": "/nextstrain/charon"
 }

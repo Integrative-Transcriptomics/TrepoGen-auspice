@@ -1,7 +1,6 @@
 import React from "react";
 import styled from 'styled-components';
-
-const logoPNG = require("../../images/logo-trepogen.png");
+import logoPNG from "../../images/logo-light.svg";
 
 const AuspiceNavBarContainer = styled.div`
   display: flex;
